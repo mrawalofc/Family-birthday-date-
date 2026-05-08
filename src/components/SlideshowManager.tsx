@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Trash2, Image as ImageIcon, Loader2, X, AlertCircle, Save, Upload } from 'lucide-react';
 import { sounds } from '../lib/sounds';
+import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query, writeBatch, getDocs, orderBy } from 'firebase/firestore';
 
 interface SlideshowImage {
   id: string;
@@ -21,6 +23,76 @@ export const SlideshowManager: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
   const [selectedFiles, setSelectedFiles] = useState<{ url: string, name: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
+  const [isInitialSync, setIsInitialSync] = useState(true);
+
+  // Firestore Sync Logic
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+
+    const setupSync = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      setSyncStatus('syncing');
+      // Blueprint says /slideshow/{id}
+      const slidesRef = collection(db, 'slideshow');
+
+      // 1. Initial catch-up from Firestore if local is empty
+      const snapshot = await getDocs(slidesRef);
+      if (snapshot.empty && images.length > 0 && isInitialSync) {
+        const batch = writeBatch(db);
+        images.forEach(img => {
+          const docRef = doc(slidesRef, img.id);
+          batch.set(docRef, { ...img, userId: user.uid });
+        });
+        await batch.commit();
+      }
+
+      // 2. Subscription
+      const q = query(slidesRef, orderBy('createdAt', 'desc'));
+      unsubscribe = onSnapshot(q, (snap) => {
+        const firestoreImages: SlideshowImage[] = [];
+        snap.forEach(doc => firestoreImages.push(doc.data() as SlideshowImage));
+        
+        if (firestoreImages.length > 0 || !isInitialSync) {
+          setImages(firestoreImages);
+        }
+        setSyncStatus('synced');
+        setIsInitialSync(false);
+      }, (err) => {
+        if (auth.currentUser) handleFirestoreError(err, OperationType.LIST, slidesRef.path);
+        setSyncStatus('error');
+      });
+    };
+
+    setupSync();
+    return () => unsubscribe?.();
+  }, [auth.currentUser]);
+
+  const saveToFirestore = async (item: SlideshowImage) => {
+    if (!auth.currentUser) return;
+    try {
+      setSyncStatus('syncing');
+      await setDoc(doc(db, 'slideshow', item.id), { ...item, userId: auth.currentUser.uid });
+      setSyncStatus('synced');
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, `slideshow/${item.id}`);
+      setSyncStatus('error');
+    }
+  };
+
+  const removeFromFirestore = async (id: string) => {
+    if (!auth.currentUser) return;
+    try {
+      setSyncStatus('syncing');
+      await deleteDoc(doc(db, 'slideshow', id));
+      setSyncStatus('synced');
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, `slideshow/${id}`);
+      setSyncStatus('error');
+    }
+  };
 
   const t = {
     bn: {
@@ -175,6 +247,9 @@ export const SlideshowManager: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
 
       const updated = [...newImages, ...images].slice(0, 10);
       saveToLocal(updated);
+      
+      // Save each new image to Firestore
+      newImages.forEach(img => saveToFirestore(img));
 
       setNewUrl('');
       setNewCaption('');
@@ -192,6 +267,7 @@ export const SlideshowManager: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
   const handleDelete = async (id: string) => {
     const updated = images.filter(img => img.id !== id);
     saveToLocal(updated);
+    removeFromFirestore(id);
     sounds.play('error');
   };
 

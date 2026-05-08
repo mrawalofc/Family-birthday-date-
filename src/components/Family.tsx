@@ -1,56 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Trash2, Edit2, RotateCcw, Save, Users, Calendar, Clock, Star, Loader2, Bell, X, Cloud, CloudOff, RefreshCw } from 'lucide-react';
-import { auth, db } from '../lib/firebase';
+import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { sounds } from '../lib/sounds';
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query, writeBatch, getDocs } from 'firebase/firestore';
-
-enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId?: string | null;
-    email?: string | null;
-    emailVerified?: boolean | null;
-    isAnonymous?: boolean | null;
-    tenantId?: string | null;
-    providerInfo?: {
-      providerId?: string | null;
-      email?: string | null;
-    }[];
-  }
-}
-
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData?.map(provider => ({
-        providerId: provider.providerId,
-        email: provider.email,
-      })) || []
-    },
-    operationType,
-    path
-  };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-}
 
 interface FamilyMember {
   id: string;
@@ -263,6 +216,72 @@ export const Family: React.FC<{ lang: 'bn' | 'en', defaultViewMode?: 'grid' | 'm
     setStats({ total: members.length, upcoming, thisMonth: thisMonthCount, monthMembers });
   };
 
+  // Firestore Sync Logic
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+
+    const setupSync = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      setSyncStatus('syncing');
+      const familyRef = collection(db, 'users', user.uid, 'family');
+
+      // 1. Initial catch-up from Firestore if local is empty
+      const snapshot = await getDocs(familyRef);
+      if (snapshot.empty && members.length > 0 && isInitialSync) {
+        const batch = writeBatch(db);
+        members.forEach(m => {
+          const docRef = doc(familyRef, m.id);
+          batch.set(docRef, m);
+        });
+        await batch.commit();
+      }
+
+      // 2. Subscription
+      unsubscribe = onSnapshot(familyRef, (snap) => {
+        const firestoreMembers: FamilyMember[] = [];
+        snap.forEach(doc => firestoreMembers.push(doc.data() as FamilyMember));
+        
+        if (firestoreMembers.length > 0 || !isInitialSync) {
+          setMembers(firestoreMembers);
+        }
+        setSyncStatus('synced');
+        setIsInitialSync(false);
+      }, (err) => {
+        if (auth.currentUser) handleFirestoreError(err, OperationType.LIST, familyRef.path);
+        setSyncStatus('error');
+      });
+    };
+
+    setupSync();
+    return () => unsubscribe?.();
+  }, [auth.currentUser]);
+
+  const saveToFirestore = async (item: FamilyMember) => {
+    if (!auth.currentUser) return;
+    try {
+      setSyncStatus('syncing');
+      await setDoc(doc(db, 'users', auth.currentUser.uid, 'family', item.id), item);
+      setSyncStatus('synced');
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, `users/${auth.currentUser?.uid}/family/${item.id}`);
+      setSyncStatus('error');
+    }
+  };
+
+  const removeFromFirestore = async (id: string) => {
+    if (!auth.currentUser) return;
+    try {
+      setSyncStatus('syncing');
+      await deleteDoc(doc(db, 'users', auth.currentUser.uid, 'family', id));
+      setSyncStatus('synced');
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, `users/${auth.currentUser?.uid}/family/${id}`);
+      setSyncStatus('error');
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.birthday) return;
@@ -270,18 +289,22 @@ export const Family: React.FC<{ lang: 'bn' | 'en', defaultViewMode?: 'grid' | 'm
     if (editingId) {
       const updated = members.find(m => m.id === editingId);
       if (updated) {
-        const newData = { ...updated, ...formData };
+        const newData = { ...updated, ...formData } as FamilyMember;
         setMembers(members.map(m => m.id === editingId ? newData : m));
+        saveToFirestore(newData);
         sounds.play('success');
       }
       setEditingId(null);
     } else {
       const newMember: FamilyMember = {
         id: Date.now().toString(),
-        ...formData,
+        name: formData.name,
+        relation: formData.relation,
+        birthday: formData.birthday,
         createdAt: Date.now()
       };
       setMembers([...members, newMember]);
+      saveToFirestore(newMember);
       sounds.play('success');
     }
     setFormData({ name: '', relation: 'Father', birthday: '' });
@@ -290,6 +313,7 @@ export const Family: React.FC<{ lang: 'bn' | 'en', defaultViewMode?: 'grid' | 'm
   const deleteMember = (id: string) => {
     if (window.confirm('Are you sure?')) {
       setMembers(members.filter(m => m.id !== id));
+      removeFromFirestore(id);
       sounds.play('click');
     }
   };

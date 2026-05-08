@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Settings, Check, X, Heart, Star, Sparkles, Clock, Calendar as CalendarIcon, Bell, Cake, Gift, PartyPopper } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { auth } from '../lib/firebase';
+import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { sounds } from '../lib/sounds';
+import { collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch, getDocs, query } from 'firebase/firestore';
 
 interface EventData {
   id: string;
@@ -35,7 +36,9 @@ const texts = {
     dateLabel: "তারিখ",
     addBtn: "নতুন ডেট যোগ করুন",
     deleteBtn: "মুছে ফেলুন",
-    iconLabel: "আইকন"
+    iconLabel: "আইকন",
+    syncing: "সিঙ্ক হচ্ছে...",
+    synced: "সিঙ্ক হয়েছে"
   },
   en: {
     title: "Family Birthdays",
@@ -53,7 +56,9 @@ const texts = {
     dateLabel: "Date",
     addBtn: "Add New Date",
     deleteBtn: "Delete",
-    iconLabel: "Icon"
+    iconLabel: "Icon",
+    syncing: "Syncing...",
+    synced: "Synced"
   }
 };
 
@@ -90,7 +95,85 @@ export const Countdown: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
   const [timeLeft, setTimeLeft] = useState<{ [key: string]: any }>({});
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(sounds.isEnabled());
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
+  const [isInitialSync, setIsInitialSync] = useState(true);
   const notifiedToday = useRef<Set<string>>(new Set());
+
+  // Firestore Sync
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+
+    const setupSync = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      setSyncStatus('syncing');
+      const milestonesRef = collection(db, 'users', user.uid, 'milestones');
+
+      // 1. Initial catch-up from Firestore if local is empty
+      const snapshot = await getDocs(milestonesRef);
+      if (snapshot.empty && events.length > 0 && isInitialSync) {
+        const batch = writeBatch(db);
+        events.forEach(ev => {
+          const docRef = doc(milestonesRef, ev.id);
+          batch.set(docRef, ev);
+        });
+        await batch.commit();
+      }
+
+      // 2. Subscription
+      unsubscribe = onSnapshot(milestonesRef, (snap) => {
+        const firestoreEvents: EventData[] = [];
+        snap.forEach(doc => firestoreEvents.push(doc.data() as EventData));
+        
+        if (firestoreEvents.length > 0 || !isInitialSync) {
+          // Sort to maintain consistency if needed, though they are stored by ID
+          setEvents(firestoreEvents);
+        }
+        setSyncStatus('synced');
+        setIsInitialSync(false);
+      }, (err) => {
+        if (auth.currentUser) handleFirestoreError(err, OperationType.LIST, milestonesRef.path);
+        setSyncStatus('error');
+      });
+    };
+
+    setupSync();
+    return () => unsubscribe?.();
+  }, [auth.currentUser]);
+
+  const saveToFirestore = async (updatedEvents: EventData[]) => {
+    if (!auth.currentUser) return;
+    try {
+      setSyncStatus('syncing');
+      const milestonesRef = collection(db, 'users', auth.currentUser.uid, 'milestones');
+      
+      // Since we are editing the whole list, we might want to reconcile.
+      // But for simplicity, we'll just update/add what's in the list.
+      // And we need to delete what's removed.
+      
+      const currentSnapshot = await getDocs(milestonesRef);
+      const batch = writeBatch(db);
+      
+      // Delete removed
+      currentSnapshot.forEach(doc => {
+        if (!updatedEvents.find(e => e.id === doc.id)) {
+          batch.delete(doc.ref);
+        }
+      });
+
+      // Update/Set current
+      updatedEvents.forEach(ev => {
+        batch.set(doc(milestonesRef, ev.id), ev);
+      });
+
+      await batch.commit();
+      setSyncStatus('synced');
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, `users/${auth.currentUser?.uid}/milestones`);
+      setSyncStatus('error');
+    }
+  };
 
   useEffect(() => {
     sounds.setEnabled(soundEnabled);
@@ -230,6 +313,7 @@ export const Countdown: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
 
   const handleSave = () => {
     setEvents(editFormData);
+    saveToFirestore(editFormData);
     localStorage.setItem('love_world_special_dates_v3', JSON.stringify(editFormData));
     sounds.play('success');
     setIsEditing(false);
