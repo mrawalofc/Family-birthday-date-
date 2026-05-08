@@ -28,15 +28,15 @@ export const NetworkStatus: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
   const t = {
     bn: {
       offlineTitle: "কোনো ইন্টারনেট কানেকশন নেই!",
-      offlineSub: "অনুগ্রহ করে ওয়াইফাই বা মোবাইল ডাটা কানেক্ট করুন। আপনার পরিবর্তনগুলো তখন ড্রাইভের সাথে সিনক্রোনাইজ হবে।",
+      offlineSub: "অনুগ্রহ করে ওয়াইফাই বা মোবাইল ডাটা কানেক্ট করুন। আপনার পরিবর্তনগুলো তখন ডাটাবেসের সাথে সিনক্রোনাইজ হবে।",
       onlineBack: "ইন্টারনেট কানেকশন ফিরে এসেছে!",
-      syncing: "গুগল ড্রাইভের সাথে সিনক্রোনাইজ করা হচ্ছে...",
+      syncing: "ডাটাবেসের সাথে সিনক্রোনাইজ করা হচ্ছে...",
     },
     en: {
       offlineTitle: "No Internet Connection!",
-      offlineSub: "Please connect to WiFi or mobile data. Your changes will then be synchronized with Google Drive.",
+      offlineSub: "Please connect to WiFi or mobile data. Your changes will then be synchronized with the database.",
       onlineBack: "You're back online!",
-      syncing: "Synchronizing with Google Drive...",
+      syncing: "Synchronizing with the database...",
     }
   };
 

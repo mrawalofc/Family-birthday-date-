@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { User, Camera, Edit2, Save, X, LogIn, LogOut, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { auth, runWithPopupGuard } from '../lib/firebase';
-import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { GoogleDriveManager } from './GoogleDriveManager';
+import { auth } from '../lib/firebase';
+import { signOut } from 'firebase/auth';
 import { SlideshowManager } from './SlideshowManager';
 
 interface ProfileData {
@@ -47,11 +46,11 @@ export const UserProfile: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
       bio: 'বায়ো',
       pic: 'প্রোফাইল পিকচার',
       upload: 'ছবি আপলোড করুন',
-      loginTitle: 'লিঙ্ক অ্যাকাউন্ট',
-      loginSub: 'আপনার তথ্যাদি ক্লাউডে সুরক্ষিত রাখতে গুগল দিয়ে লগইন করুন।',
-      googleBtn: 'গুগল দিয়ে লগইন',
-      logoutBtn: 'লগআউট',
-      authError: 'লগইন করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।'
+      loginTitle: 'Account Status',
+      loginSub: 'Sync features require an account.',
+      googleBtn: 'Sign in',
+      logoutBtn: 'Sign Out',
+      authError: 'Authentication failed.'
     },
     en: {
       title: 'User Profile',
@@ -63,11 +62,11 @@ export const UserProfile: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
       bio: 'Bio',
       pic: 'Profile Picture',
       upload: 'Upload Picture',
-      loginTitle: 'Link Account',
-      loginSub: 'Sign in with Google to sync your data securely across devices.',
-      googleBtn: 'Sign in with Google',
+      loginTitle: 'Account Status',
+      loginSub: 'Sync features require an account.',
+      googleBtn: 'Sign in',
       logoutBtn: 'Sign Out',
-      authError: 'Authentication failed. Please try again.'
+      authError: 'Authentication failed.'
     }
   };
 
@@ -80,14 +79,6 @@ export const UserProfile: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
   useEffect(() => {
     const unsub = auth.onAuthStateChanged((u) => {
       setCurrentUser(u);
-      if (u) {
-        // If logged in, update profile pic/name from Google if local is empty
-        setProfile(prev => ({
-          name: prev.name === 'আমার নাম' || prev.name === 'My Name' ? (u.displayName || prev.name) : prev.name,
-          bio: prev.bio,
-          profilePic: prev.profilePic || u.photoURL || '',
-        }));
-      }
     });
     return () => unsub();
   }, []);
@@ -101,29 +92,6 @@ export const UserProfile: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
   const handleSave = () => {
     setProfile(tempProfile);
     setIsEditing(false);
-  };
-
-  const handleGoogleLogin = async () => {
-    setAuthLoading(true);
-    setAuthError(null);
-    try {
-      const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({
-        prompt: 'select_account'
-      });
-      await runWithPopupGuard(() => signInWithPopup(auth, provider));
-    } catch (err: any) {
-      console.error(err);
-      if (err.code === 'auth/popup-closed-by-user') {
-        setAuthError(lang === 'bn' ? 'লগইন উইন্ডোটি বন্ধ করা হয়েছে।' : 'Login window was closed.');
-      } else if (err.code === 'auth/popup-blocked') {
-        setAuthError(lang === 'bn' ? 'পপআপ ব্লক করা হয়েছে! দয়া করে ব্রাউজারে পপআপ অনুমতি দিন।' : 'Popup blocked! Please allow popups in your browser settings.');
-      } else {
-        setAuthError(l.authError);
-      }
-    } finally {
-      setAuthLoading(false);
-    }
   };
 
   const handleLogout = async () => {
@@ -159,19 +127,6 @@ export const UserProfile: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
           </div>
           <h3 className="text-xl font-bold text-white mb-2">{l.loginTitle}</h3>
           <p className="text-white/40 text-sm mb-6">{l.loginSub}</p>
-          
-          {authError && (
-            <p className="text-xs text-red-400 mb-4 bg-red-400/10 py-2 rounded-lg">{authError}</p>
-          )}
-
-          <button 
-            onClick={handleGoogleLogin}
-            disabled={authLoading}
-            className="w-full bg-white text-black py-4 rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-white/90 transition-all active:scale-95 disabled:opacity-50"
-          >
-            {authLoading ? <Loader2 size={20} className="animate-spin" /> : <LogIn size={20} />}
-            {l.googleBtn}
-          </button>
         </motion.div>
       ) : (
         <motion.div

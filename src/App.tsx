@@ -23,9 +23,9 @@ import { NetworkStatus } from './components/NetworkStatus';
 import { Slideshow } from './components/Slideshow';
 import { MusicPlayer } from './components/MusicPlayer';
 import { Moments } from './components/Moments';
-import { SyncTab } from './components/SyncTab';
+import { UserProfile } from './components/UserProfile';
 import { Weather } from './components/Weather';
-import { Heart, Users, Cloud } from 'lucide-react';
+import { Heart, Users, User } from 'lucide-react';
 import { sounds } from './lib/sounds';
 
 export default function App() {
@@ -65,45 +65,12 @@ export default function App() {
         const migrated = localStorage.getItem('love_world_migrated_v2');
         if (!migrated) {
           localStorage.setItem('love_world_migrated_v2', 'true');
-          // We could fetch from Firestore here if we wanted to migrate old data
         }
       }
       setAuthLoading(false);
     });
     return () => unsubscribe();
   }, []);
-
-  // Auto-sync logic on reconnect
-  useEffect(() => {
-    const handleSyncOnReconnect = async () => {
-      if (navigator.onLine && user) {
-        const isAutoSyncEnabled = localStorage.getItem('auto_sync_drive') === 'true';
-        if (!isAutoSyncEnabled) return;
-
-        console.log('Reconnected! Attempting auto-sync to Google Drive...');
-        try {
-          const allData: Record<string, string | null> = {};
-          for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key) allData[key] = localStorage.getItem(key);
-          }
-          
-          const { GoogleDriveService } = await import('./services/googleDriveService');
-          const linked = await GoogleDriveService.isLinked();
-          if (linked) {
-            // We attempt to upload. We set isBackground=true to avoid popups.
-            await GoogleDriveService.uploadBackup({ data: allData, timestamp: new Date().toISOString() }, true);
-            console.log('Auto-sync successful!');
-          }
-        } catch (e) {
-          console.error('Auto-sync failed:', e);
-          // We don't alert the user here to avoid annoying popups during background tasks
-        }
-      }
-    };
-    window.addEventListener('online', handleSyncOnReconnect);
-    return () => window.removeEventListener('online', handleSyncOnReconnect);
-  }, [user]);
 
   const handleSaveMessage = () => {
     localStorage.setItem('love_world_msg_bn', customMessages.bn);
@@ -136,7 +103,7 @@ export default function App() {
       case 'quiz': return <Quiz lang={lang} />;
       case 'designer': return <LivePreviewDesigner lang={lang} />;
       case 'moments': return <Moments lang={lang} />;
-      case 'sync': return <SyncTab lang={lang} />;
+      case 'profile': return <UserProfile lang={lang} />;
       default:
         return (
           <div className="w-full max-w-3xl flex flex-col items-center mt-10">
@@ -400,46 +367,6 @@ export default function App() {
             English
           </button>
         </div>
-
-        {/* Quick Auth Info */}
-        <AnimatePresence>
-          {!authLoading && (
-            <motion.button
-              initial={{ x: 20, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              onClick={() => { sounds.play('click'); setActiveTab('sync'); }}
-              className="bg-black/30 backdrop-blur-md rounded-2xl p-2 pr-4 flex items-center gap-3 border border-white/20 shadow-xl hover:bg-black/40 transition-all group"
-            >
-              {user && !user.isAnonymous ? (
-                <>
-                  <div className="w-8 h-8 rounded-lg overflow-hidden border border-white/10 shrink-0">
-                    {user.photoURL ? (
-                      <img src={user.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                    ) : (
-                      <div className="w-full h-full bg-pink-500 flex items-center justify-center text-xs font-bold text-white">
-                        {user.displayName?.charAt(0) || 'U'}
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-left hidden sm:block">
-                    <p className="text-[10px] text-white font-bold leading-none truncate max-w-[80px]">{user.displayName || 'User'}</p>
-                    <p className="text-[8px] text-emerald-400 font-bold uppercase tracking-widest mt-0.5">Cloud Synced</p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center shrink-0 text-white/40 group-hover:text-pink-400 transition-colors">
-                    <Cloud size={16} />
-                  </div>
-                  <div className="text-left hidden sm:block">
-                    <p className="text-[10px] text-white/60 font-bold leading-none">{lang === 'bn' ? 'ব্যাকআপ' : 'Sync & Backup'}</p>
-                    <p className="text-[8px] text-white/20 font-bold uppercase tracking-widest mt-0.5">Local Mode</p>
-                  </div>
-                </>
-              )}
-            </motion.button>
-          )}
-        </AnimatePresence>
       </div>
 
       <main className="relative z-10 w-full max-w-6xl">
@@ -460,7 +387,7 @@ export default function App() {
       {/* Footer / Quick Nav (Mobile focus) */}
       <footer className="fixed bottom-0 left-0 w-full lg:hidden bg-black/40 backdrop-blur-lg border-t border-white/10 z-[200] pb-safe">
         <div className="flex justify-around items-center h-16 px-2">
-          {['home', 'family', 'gallery', 'moments', 'sync'].map((tab) => (
+          {['home', 'family', 'gallery', 'moments', 'profile'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -474,7 +401,7 @@ export default function App() {
                 {tab === 'gallery' && <span className="text-xl">🖼️</span>}
                 {tab === 'moments' && <span className="text-xl">✨</span>}
                 {tab === 'family' && <Users size={20} />}
-                {tab === 'sync' && <Cloud size={20} />}
+                {tab === 'profile' && <User size={20} />}
               </div>
               <span className="text-[10px] uppercase font-bold tracking-tighter">{tab}</span>
             </button>
