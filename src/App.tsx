@@ -60,15 +60,7 @@ export default function App() {
 
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
-      if (!u) {
-        // Sign in anonymously if not logged in to handle internal UID requirements
-        try {
-          const { signInAnonymously } = await import('firebase/auth');
-          await signInAnonymously(auth);
-        } catch (e) {
-          console.error('Anonymous auth failed:', e);
-        }
-      } else {
+      if (u) {
         // Potential migration check if needed
         const migrated = localStorage.getItem('love_world_migrated_v2');
         if (!migrated) {
