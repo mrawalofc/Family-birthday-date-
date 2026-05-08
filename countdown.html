@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Love Countdown ⏳</title>
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;600;700&family=Great+Vibes&family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1a0a2e 0%, #4a1942 25%, #893168 50%, #c44569 75%, #f8b500 100%);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+            overflow-x: hidden;
+            font-family: 'Hind Siliguri', 'Poppins', sans-serif;
+            position: relative; color: white;
+        }
+        @keyframes gradientBG { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        .hearts-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; z-index: 1; }
+        .heart { position: absolute; color: rgba(255,255,255,0.25); font-size: 20px; animation: floatUp linear infinite; bottom: -50px; }
+        @keyframes floatUp { 0% { transform: translateY(0) rotate(0deg) scale(1); opacity: 0.8; } 100% { transform: translateY(-100vh) rotate(360deg) scale(0.5); opacity: 0; } }
+        .sparkle { position: absolute; width: 4px; height: 4px; background: white; border-radius: 50%; animation: sparkle 3s ease-in-out infinite; }
+        @keyframes sparkle { 0%, 100% { opacity: 0; transform: scale(0); } 50% { opacity: 1; transform: scale(1); } }
+        .navbar { position: fixed; top: 0; left: 0; width: 100%; z-index: 200; background: rgba(0,0,0,0.25); backdrop-filter: blur(15px); border-bottom: 1px solid rgba(255,255,255,0.1); padding: 0 20px; }
+        .nav-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 60px; }
+        .nav-logo { font-family: 'Great Vibes', cursive; font-size: 1.8rem; color: #fff; text-shadow: 0 0 15px rgba(255,105,180,0.8); text-decoration: none; }
+        .nav-links { display: flex; gap: 6px; flex-wrap: wrap; }
+        .nav-link { padding: 7px 14px; border: none; background: transparent; color: rgba(255,255,255,0.7); font-family: 'Poppins', sans-serif; font-size: 0.82rem; cursor: pointer; border-radius: 20px; transition: all 0.3s ease; text-decoration: none; }
+        .nav-link:hover { background: rgba(255,255,255,0.15); color: white; }
+        .nav-link.active { background: rgba(255,105,180,0.4); color: white; font-weight: 600; }
+        .lang-toggle { position: fixed; top: 75px; right: 20px; z-index: 100; background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); border-radius: 30px; padding: 5px; display: flex; gap: 5px; border: 1px solid rgba(255,255,255,0.2); }
+        .lang-btn { padding: 6px 16px; border: none; background: transparent; color: white; font-family: 'Poppins', sans-serif; font-size: 13px; cursor: pointer; border-radius: 25px; transition: all 0.3s ease; }
+        .lang-btn.active { background: rgba(255,255,255,0.3); font-weight: 600; }
+        .lang-btn:hover { background: rgba(255,255,255,0.2); }
+        .page-header { text-align: center; padding: 100px 20px 20px; position: relative; z-index: 10; }
+        .page-header h2 { font-family: 'Great Vibes', cursive; font-size: 3rem; text-shadow: 0 0 20px rgba(255,105,180,0.6); margin-bottom: 10px; }
+        .page-header p { color: rgba(255,255,255,0.7); font-size: 1rem; }
+        .countdown-container { max-width: 900px; margin: 0 auto; padding: 20px 20px 60px; position: relative; z-index: 10; }
+        .countdown-card {
+            background: rgba(255,255,255,0.08); backdrop-filter: blur(15px);
+            border-radius: 25px; padding: 35px 30px; border: 1px solid rgba(255,255,255,0.15);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2); text-align: center; margin-bottom: 25px;
+        }
+        .countdown-label { font-family: 'Great Vibes', cursive; font-size: 2rem; color: #ffb3d1; margin-bottom: 8px; }
+        .countdown-date { font-size: 0.95rem; color: rgba(255,255,255,0.6); margin-bottom: 20px; }
+        .countdown-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; max-width: 500px; margin: 0 auto; }
+        .countdown-box {
+            background: linear-gradient(135deg, rgba(255,107,157,0.3), rgba(196,69,105,0.3));
+            border-radius: 18px; padding: 20px 8px; border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .countdown-number { font-size: 2.2rem; font-weight: 700; color: #fff; text-shadow: 0 0 20px rgba(255,107,157,0.8); }
+        .countdown-unit { font-size: 0.8rem; color: rgba(255,255,255,0.7); margin-top: 5px; }
+        .birthday-section { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; max-width: 900px; margin: 0 auto 25px; }
+        .birthday-card {
+            background: rgba(255,255,255,0.08); backdrop-filter: blur(15px);
+            border-radius: 25px; padding: 30px; border: 1px solid rgba(255,255,255,0.15);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2); text-align: center;
+        }
+        .birthday-card .bday-icon { font-size: 3rem; margin-bottom: 10px; animation: bounce 2s ease infinite; }
+        .birthday-card .bday-name { font-family: 'Great Vibes', cursive; font-size: 1.8rem; color: #ffb3d1; margin-bottom: 5px; }
+        .birthday-card .bday-date { font-size: 0.9rem; color: rgba(255,255,255,0.6); margin-bottom: 15px; }
+        .birthday-card .bday-age { font-size: 1.5rem; font-weight: 700; color: #f8b500; margin-bottom: 15px; text-shadow: 0 0 15px rgba(248,181,0,0.5); }
+        .birthday-card .bday-countdown { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+        .birthday-card .bday-box {
+            background: linear-gradient(135deg, rgba(248,181,0,0.2), rgba(255,107,157,0.2));
+            border-radius: 12px; padding: 12px 5px; border: 1px solid rgba(255,255,255,0.15);
+        }
+        .birthday-card .bday-num { font-size: 1.4rem; font-weight: 700; color: #fff; }
+        .birthday-card .bday-unit { font-size: 0.7rem; color: rgba(255,255,255,0.6); }
+        .together-since {
+            background: rgba(255,255,255,0.08); backdrop-filter: blur(15px);
+            border-radius: 25px; padding: 35px; border: 1px solid rgba(255,255,255,0.15);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2); text-align: center; margin-bottom: 25px;
+        }
+        .together-since h3 { font-family: 'Great Vibes', cursive; font-size: 2rem; color: #ffb3d1; margin-bottom: 20px; }
+        .together-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; max-width: 500px; margin: 0 auto; }
+        .together-box {
+            background: linear-gradient(135deg, rgba(248,181,0,0.3), rgba(224,86,253,0.3));
+            border-radius: 18px; padding: 20px 8px; border: 1px solid rgba(255,255,255,0.2);
+        }
+        .together-number { font-size: 2rem; font-weight: 700; color: #fff; text-shadow: 0 0 20px rgba(248,181,0,0.8); }
+        .together-unit { font-size: 0.8rem; color: rgba(255,255,255,0.7); margin-top: 5px; }
+        .love-quote {
+            margin-top: 25px; font-style: italic; color: rgba(255,255,255,0.8);
+            font-size: 1.05rem; line-height: 1.8; padding: 0 20px;
+        }
+        .love-quote .quote-author { display: block; margin-top: 10px; color: #ffb3d1; font-family: 'Great Vibes', cursive; font-size: 1.3rem; font-style: normal; }
+        .floating-emoji { position: fixed; font-size: 24px; pointer-events: none; z-index: 5; animation: floatEmoji 10s ease-in-out infinite; }
+        @keyframes floatEmoji { 0%, 100% { transform: translate(0,0) rotate(0deg); } 25% { transform: translate(20px,-30px) rotate(10deg); } 50% { transform: translate(-10px,-50px) rotate(-5deg); } 75% { transform: translate(15px,-20px) rotate(5deg); } }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        .hidden { display: none !important; }
+        @media (max-width: 768px) { .nav-link { padding: 5px 10px; font-size: 0.7rem; } .page-header h2 { font-size: 2.2rem; } .countdown-grid, .together-grid, .bday-countdown { grid-template-columns: repeat(2, 1fr); } .countdown-number, .together-number { font-size: 1.8rem; } .countdown-card, .together-since, .birthday-card { padding: 25px 15px; } .birthday-section { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="hearts-container" id="heartsContainer"></div>
+    <nav class="navbar">
+        <div class="nav-inner">
+            <a href="index.html" class="nav-logo">💕 Love World</a>
+            <div class="nav-links">
+                <a href="index.html" class="nav-link">🏠 Home</a>
+                <a href="messages.html" class="nav-link">💌 Messages</a>
+                <a href="gallery.html" class="nav-link">🖼️ Gallery</a>
+                <a href="letter.html" class="nav-link">📜 Letter</a>
+                <a href="countdown.html" class="nav-link active">⏳ Countdown</a>
+                <a href="quiz.html" class="nav-link">❓ Quiz</a>
+            </div>
+        </div>
+    </nav>
+    <div class="lang-toggle">
+        <button class="lang-btn active" onclick="setLang('bn')">বাংলা</button>
+        <button class="lang-btn" onclick="setLang('en')">English</button>
+    </div>
+    <div class="floating-emoji" style="top: 15%; left: 10%; animation-delay: 0s;">🌹</div>
+    <div class="floating-emoji" style="top: 25%; right: 15%; animation-delay: 2s;">💕</div>
+    <div class="floating-emoji" style="bottom: 20%; left: 20%; animation-delay: 4s;">💖</div>
+    <div class="floating-emoji" style="bottom: 30%; right: 10%; animation-delay: 6s;">🌸</div>
+    <div class="floating-emoji" style="top: 60%; left: 5%; animation-delay: 3s;">✨</div>
+    <div class="floating-emoji" style="top: 40%; right: 5%; animation-delay: 5s;">💫</div>
+    <div class="floating-emoji" style="top: 10%; right: 25%; animation-delay: 1s;">💘</div>
+    <div class="floating-emoji" style="top: 80%; left: 30%; animation-delay: 7s;">🦋</div>
+    <div class="floating-emoji" style="bottom: 10%; right: 40%; animation-delay: 8s;">💌</div>
+    <div class="floating-emoji" style="top: 70%; right: 15%; animation-delay: 9s;">💍</div>
+    <div class="floating-emoji" style="bottom: 50%; left: 15%; animation-delay: 1.5s;">🧸</div>
+    <div class="floating-emoji" style="top: 30%; left: 40%; animation-delay: 2.5s;">💝</div>
+
+    <div class="page-header">
+        <h2 id="pageMainTitle">Our Special Dates</h2>
+        <p id="pageSubTitle">Every moment with you is precious ⏳💕</p>
+    </div>
+
+    <div class="countdown-container">
+        <!-- Mim Birthday -->
+        <div class="birthday-section">
+            <div class="birthday-card">
+                <div class="bday-icon">🎂</div>
+                <div class="bday-name" id="mimName">Mim's Birthday</div>
+                <div class="bday-date" id="mimDate">June 15, 2010</div>
+                <div class="bday-age" id="mimAge">Age: 15</div>
+                <div class="bday-countdown" id="mimCountdown">
+                    <div class="bday-box"><div class="bday-num" id="mim-d">00</div><div class="bday-unit" id="mim-d-u">Days</div></div>
+                    <div class="bday-box"><div class="bday-num" id="mim-h">00</div><div class="bday-unit" id="mim-h-u">Hours</div></div>
+                    <div class="bday-box"><div class="bday-num" id="mim-m">00</div><div class="bday-unit" id="mim-m-u">Min</div></div>
+                    <div class="bday-box"><div class="bday-num" id="mim-s">00</div><div class="bday-unit" id="mim-s-u">Sec</div></div>
+                </div>
+            </div>
+            <div class="birthday-card">
+                <div class="bday-icon">🎉</div>
+                <div class="bday-name" id="awalName">Awal's Birthday</div>
+                <div class="bday-date" id="awalDate">September 6, 2000</div>
+                <div class="bday-age" id="awalAge">Age: 25</div>
+                <div class="bday-countdown" id="awalCountdown">
+                    <div class="bday-box"><div class="bday-num" id="awal-d">00</div><div class="bday-unit" id="awal-d-u">Days</div></div>
+                    <div class="bday-box"><div class="bday-num" id="awal-h">00</div><div class="bday-unit" id="awal-h-u">Hours</div></div>
+                    <div class="bday-box"><div class="bday-num" id="awal-m">00</div><div class="bday-unit" id="awal-m-u">Min</div></div>
+                    <div class="bday-box"><div class="bday-num" id="awal-s">00</div><div class="bday-unit" id="awal-s-u">Sec</div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Anniversary Countdown -->
+        <div class="countdown-card">
+            <div class="countdown-label" id="anniLabel">Next Anniversary</div>
+            <div class="countdown-date" id="anniDate">Coming soon...</div>
+            <div class="countdown-grid">
+                <div class="countdown-box">
+                    <div class="countdown-number" id="cd-days">00</div>
+                    <div class="countdown-unit" id="unit-days">Days</div>
+                </div>
+                <div class="countdown-box">
+                    <div class="countdown-number" id="cd-hours">00</div>
+                    <div class="countdown-unit" id="unit-hours">Hours</div>
+                </div>
+                <div class="countdown-box">
+                    <div class="countdown-number" id="cd-minutes">00</div>
+                    <div class="countdown-unit" id="unit-minutes">Minutes</div>
+                </div>
+                <div class="countdown-box">
+                    <div class="countdown-number" id="cd-seconds">00</div>
+                    <div class="countdown-unit" id="unit-seconds">Seconds</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Together Since -->
+        <div class="together-since">
+            <h3 id="togetherLabel">Together Since</h3>
+            <div class="together-grid">
+                <div class="together-box">
+                    <div class="together-number" id="tg-days">0</div>
+                    <div class="together-unit" id="tg-unit-days">Days</div>
+                </div>
+                <div class="together-box">
+                    <div class="together-number" id="tg-hours">0</div>
+                    <div class="together-unit" id="tg-unit-hours">Hours</div>
+                </div>
+                <div class="together-box">
+                    <div class="together-number" id="tg-minutes">0</div>
+                    <div class="together-unit" id="tg-unit-minutes">Minutes</div>
+                </div>
+                <div class="together-box">
+                    <div class="together-number" id="tg-seconds">0</div>
+                    <div class="together-unit" id="tg-unit-seconds">Seconds</div>
+                </div>
+            </div>
+            <div class="love-quote" id="loveQuote">
+                "ভালোবাসা মানে একে অপরের দিকে তাকানো নয়, ভালোবাসা মানে একসাথে একই দিকে তাকানো।"
+                <span class="quote-author">— আন্তোয়ান দে সেন্ত-এক্সুপেরি</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const mimBirthday = { month: 5, day: 15, year: 2010 };
+        const awalBirthday = { month: 8, day: 6, year: 2000 };
+        const anniversary = { month: 7, day: 1, year: 2025 };
+        const togetherStart = new Date(2025, 8, 1);
+
+        const texts = {
+            bn: {
+                title: "আমাদের বিশেষ তারিখগুলো",
+                sub: "প্রতিটি মুহূর্তই আমাদের কাছে মূল্যবান ⏳💕",
+                nextAnni: "পরবর্তী বার্ষিকী",
+                together: "একসাথে কাটানো সময়",
+                days: "দিন", hours: "ঘন্টা", minutes: "মিনিট", seconds: "সেকেন্ড",
+                min: "মি.", sec: "সে.",
+                mimName: "মিমের জন্মদিন", awalName: "আওয়ালের জন্মদিন",
+                age: "বয়স",
+                quote: '"ভালোবাসা মানে একে অপরের দিকে তাকানো নয়, ভালোবাসা মানে একসাথে একই দিকে তাকানো।"',
+                author: "— আন্তোয়ান দে সেন্ত-এক্সুপেরি"
+            },
+            en: {
+                title: "Our Special Dates",
+                sub: "Every moment with you is precious ⏳💕",
+                nextAnni: "Next Anniversary",
+                together: "Time Together",
+                days: "Days", hours: "Hours", minutes: "Minutes", seconds: "Seconds",
+                min: "Min", sec: "Sec",
+                mimName: "Mim's Birthday", awalName: "Awal's Birthday",
+                age: "Age",
+                quote: '"Love does not consist in gazing at each other, but in looking outward together in the same direction."',
+                author: "— Antoine de Saint-Exupéry"
+            }
+        };
+        let currentLang = 'bn';
+
+        function getNextBirthday(bday) {
+            const now = new Date();
+            let next = new Date(now.getFullYear(), bday.month, bday.day, 0, 0, 0);
+            if (next < now) next = new Date(now.getFullYear() + 1, bday.month, bday.day, 0, 0, 0);
+            return next;
+        }
+        function getAge(bday) {
+            const now = new Date();
+            let age = now.getFullYear() - bday.year;
+            const hasHadBirthday = now.getMonth() > bday.month || (now.getMonth() === bday.month && now.getDate() >= bday.day);
+            if (!hasHadBirthday) age--;
+            return age;
+        }
+        function getNextAnniversary() {
+            const now = new Date();
+            let next = new Date(now.getFullYear(), anniversary.month, anniversary.day, 0, 0, 0);
+            if (next < now) next = new Date(now.getFullYear() + 1, anniversary.month, anniversary.day, 0, 0, 0);
+            return next;
+        }
+        function formatCountdown(targetDate, prefix) {
+            const now = new Date();
+            const diff = targetDate - now;
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+            document.getElementById(prefix + '-d').textContent = String(days).padStart(2, '0');
+            document.getElementById(prefix + '-h').textContent = String(hours).padStart(2, '0');
+            document.getElementById(prefix + '-m').textContent = String(minutes).padStart(2, '0');
+            document.getElementById(prefix + '-s').textContent = String(seconds).padStart(2, '0');
+        }
+        function updateAll() {
+            const now = new Date();
+            const t = texts[currentLang];
+            const mimNext = getNextBirthday(mimBirthday);
+            const mimAge = getAge(mimBirthday);
+            document.getElementById('mimAge').textContent = (currentLang === 'bn' ? 'বয়স: ' : 'Age: ') + mimAge;
+            formatCountdown(mimNext, 'mim');
+            const awalNext = getNextBirthday(awalBirthday);
+            const awalAge = getAge(awalBirthday);
+            document.getElementById('awalAge').textContent = (currentLang === 'bn' ? 'বয়স: ' : 'Age: ') + awalAge;
+            formatCountdown(awalNext, 'awal');
+            const nextAnni = getNextAnniversary();
+            const anniDiff = nextAnni - now;
+            const aDays = Math.floor(anniDiff / (1000 * 60 * 60 * 24));
+            const aHours = Math.floor((anniDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const aMin = Math.floor((anniDiff % (1000 * 60 * 60)) / (1000 * 60));
+            const aSec = Math.floor((anniDiff % (1000 * 60)) / 1000);
+            document.getElementById('cd-days').textContent = String(aDays).padStart(2, '0');
+            document.getElementById('cd-hours').textContent = String(aHours).padStart(2, '0');
+            document.getElementById('cd-minutes').textContent = String(aMin).padStart(2, '0');
+            document.getElementById('cd-seconds').textContent = String(aSec).padStart(2, '0');
+            const anniDateStr = nextAnni.toLocaleDateString(currentLang === 'bn' ? 'bn-BD' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+            document.getElementById('anniDate').textContent = anniDateStr;
+            const togetherDiff = now - togetherStart;
+            const tgDays = Math.floor(togetherDiff / (1000 * 60 * 60 * 24));
+            const tgHours = Math.floor((togetherDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const tgMinutes = Math.floor((togetherDiff % (1000 * 60 * 60)) / (1000 * 60));
+            const tgSeconds = Math.floor((togetherDiff % (1000 * 60)) / 1000);
+            document.getElementById('tg-days').textContent = tgDays;
+            document.getElementById('tg-hours').textContent = tgHours;
+            document.getElementById('tg-minutes').textContent = tgMinutes;
+            document.getElementById('tg-seconds').textContent = tgSeconds;
+        }
+        function setLang(lang) {
+            currentLang = lang;
+            document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            const t = texts[lang];
+            document.getElementById('pageMainTitle').textContent = t.title;
+            document.getElementById('pageSubTitle').textContent = t.sub;
+            document.getElementById('anniLabel').textContent = t.nextAnni;
+            document.getElementById('togetherLabel').textContent = t.together;
+            document.getElementById('mimName').textContent = t.mimName;
+            document.getElementById('awalName').textContent = t.awalName;
+            document.getElementById('unit-days').textContent = t.days;
+            document.getElementById('unit-hours').textContent = t.hours;
+            document.getElementById('unit-minutes').textContent = t.minutes;
+            document.getElementById('unit-seconds').textContent = t.seconds;
+            document.getElementById('tg-unit-days').textContent = t.days;
+            document.getElementById('tg-unit-hours').textContent = t.hours;
+            document.getElementById('tg-unit-minutes').textContent = t.minutes;
+            document.getElementById('tg-unit-seconds').textContent = t.seconds;
+            document.getElementById('mim-d-u').textContent = t.days;
+            document.getElementById('mim-h-u').textContent = t.hours;
+            document.getElementById('mim-m-u').textContent = t.min;
+            document.getElementById('mim-s-u').textContent = t.sec;
+            document.getElementById('awal-d-u').textContent = t.days;
+            document.getElementById('awal-h-u').textContent = t.hours;
+            document.getElementById('awal-m-u').textContent = t.min;
+            document.getElementById('awal-s-u').textContent = t.sec;
+            document.getElementById('loveQuote').innerHTML = t.quote + '<span class="quote-author">' + t.author + '</span>';
+            updateAll();
+        }
+        function createHearts() {
+            const container = document.getElementById('heartsContainer');
+            for (let i = 0; i < 25; i++) {
+                const heart = document.createElement('div');
+                heart.className = 'heart';
+                heart.innerHTML = ['❤️','💕','💖','🌸','✨','💫','💌','💘'][Math.floor(Math.random() * 8)];
+                heart.style.left = Math.random() * 100 + '%';
+                heart.style.animationDuration = (Math.random() * 10 + 8) + 's';
+                heart.style.animationDelay = Math.random() * 10 + 's';
+                container.appendChild(heart);
+            }
+        }
+        createHearts();
+        updateAll();
+        setInterval(updateAll, 1000);
+        setLang('bn');
+    </script>
+</body>
+</html>

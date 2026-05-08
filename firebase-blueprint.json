@@ -1,0 +1,110 @@
+{
+  "entities": {
+    "FamilyMember": {
+      "title": "Family Member",
+      "description": "Information about a family member for birthday tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "relation": { "type": "string" },
+        "birthday": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "name", "relation", "birthday", "createdAt"]
+    },
+    "CountdownEvent": {
+      "title": "Countdown Event",
+      "description": "Special milestone or event",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "date": { "type": "string" },
+        "icon": { "type": "string" },
+        "isMain": { "type": "boolean" }
+      },
+      "required": ["id", "name", "date", "icon"]
+    },
+    "Moment": {
+      "title": "Memory Moment",
+      "description": "A precious memory or moment shared between the couple",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "titleBN": { "type": "string" },
+        "titleEN": { "type": "string" },
+        "descriptionBN": { "type": "string" },
+        "descriptionEN": { "type": "string" },
+        "iconId": { "type": "string" },
+        "color": { "type": "string" }
+      },
+      "required": ["id", "date", "titleBN", "titleEN", "descriptionBN", "descriptionEN", "iconId", "color"]
+    },
+    "SlideshowImage": {
+      "title": "Slideshow Image",
+      "description": "An image for the home page slideshow",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "url": { "type": "string" },
+        "caption": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "userId": { "type": "string" }
+      },
+      "required": ["url", "createdAt", "userId"]
+    },
+    "GalleryAlbum": {
+      "title": "Gallery Album",
+      "description": "A collection of photos categorized by the user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "userId": { "type": "string" }
+      },
+      "required": ["name", "createdAt", "userId"]
+    },
+    "AlbumPhoto": {
+      "title": "Album Photo",
+      "description": "A single photo within an album",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "url": { "type": "string" },
+        "caption": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["url", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/family/{memberId}": {
+      "schema": "FamilyMember",
+      "description": "Family members added by the user"
+    },
+    "/users/{userId}/milestones/{eventId}": {
+      "schema": "CountdownEvent",
+      "description": "Custom milestones and birth dates added by the user"
+    },
+    "/users/{userId}/moments/{momentId}": {
+      "schema": "Moment",
+      "description": "Heartfelt moments and memories added by the user"
+    },
+    "/users/{userId}/albums/{albumId}": {
+      "schema": "GalleryAlbum",
+      "description": "Private photo albums created by the user"
+    },
+    "/users/{userId}/albums/{albumId}/photos/{photoId}": {
+      "schema": "AlbumPhoto",
+      "description": "Photos stored within a specific private album"
+    },
+    "/slideshow/{imageId}": {
+      "schema": "SlideshowImage",
+      "description": "Global slideshow images shared across all users"
+    }
+  }
+}

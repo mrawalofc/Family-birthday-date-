@@ -1,0 +1,153 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Connectivity Test (Public get)
+    match /test/connection {
+      allow get: if true;
+    }
+
+    // 3. Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isVerified() && 
+             (request.auth.token.email.lower() == 'mrawalyt74@gmail.com' || request.auth.token.email.lower() == 'mimrawalyt74@gmail.com');
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Validation Blueprints ---
+
+    function isValidFamilyMember(data) {
+      return data.keys().hasAll(['id', 'name', 'relation', 'birthday', 'createdAt']) &&
+             data.keys().size() == 5 &&
+             isValidId(data.id) &&
+             data.name is string && data.name.size() <= 100 &&
+             data.relation is string && data.relation.size() <= 50 &&
+             data.birthday is string && data.birthday.size() <= 20 &&
+             data.createdAt is number;
+    }
+
+    function isValidCountdownEvent(data) {
+      return data.keys().hasAll(['id', 'name', 'date', 'icon']) &&
+             (data.keys().size() >= 4 && data.keys().size() <= 5) &&
+             isValidId(data.id) &&
+             data.name is string && data.name.size() <= 100 &&
+             data.date is string && data.date.size() <= 20 &&
+             data.icon is string && data.icon.size() <= 10 &&
+             (!data.keys().hasAny(['isMain']) || data.isMain is bool);
+    }
+
+    function isValidMoment(data) {
+      return data.keys().hasAll(['id', 'date', 'titleBN', 'titleEN', 'descriptionBN', 'descriptionEN', 'iconId', 'color']) &&
+             data.keys().size() == 8 &&
+             isValidId(data.id) &&
+             data.date is string && data.date.size() <= 50 &&
+             data.titleBN is string && data.titleBN.size() <= 200 &&
+             data.titleEN is string && data.titleEN.size() <= 200 &&
+             data.descriptionBN is string && data.descriptionBN.size() <= 2000 &&
+             data.descriptionEN is string && data.descriptionEN.size() <= 2000 &&
+             data.iconId is string && data.iconId.size() <= 50 &&
+             data.color is string && data.color.size() <= 100;
+    }
+
+    function isValidAlbum(data) {
+      return data.keys().hasAll(['name', 'createdAt', 'userId']) &&
+             (data.keys().size() >= 3 && data.keys().size() <= 4) &&
+             data.name is string && data.name.size() <= 100 &&
+             data.createdAt is string &&
+             data.userId == request.auth.uid &&
+             (!data.keys().hasAny(['description']) || (data.description is string && data.description.size() <= 500));
+    }
+
+    function isValidAlbumPhoto(data) {
+      return data.keys().hasAll(['url', 'createdAt']) &&
+             (data.keys().size() >= 2 && data.keys().size() <= 3) &&
+             data.url is string && data.url.size() <= 1500000 && // Allowing large base64 strings
+             data.createdAt is string &&
+             (!data.keys().hasAny(['caption']) || (data.caption is string && data.caption.size() <= 500));
+    }
+
+    function isValidSlideshowImage(data) {
+      return data.keys().hasAll(['url', 'createdAt', 'userId', 'isPublic']) &&
+             (data.keys().size() >= 4 && data.keys().size() <= 5) &&
+             data.url is string && data.url.size() <= 2000000 && // Base64 or long URLs
+             data.userId == request.auth.uid &&
+             data.createdAt is string &&
+             data.isPublic == true &&
+             (!data.keys().hasAny(['caption']) || (data.caption is string && data.caption.size() <= 200));
+    }
+
+    // --- Collections ---
+
+    match /slideshow/{imageId} {
+      allow list: if isSignedIn() && resource.data.isPublic == true;
+      allow get: if isSignedIn();
+      allow create: if isVerified() && isValidSlideshowImage(incoming());
+      allow update, delete: if isVerified() && (existing().userId == request.auth.uid || isAdmin());
+    }
+
+    match /users/{userId} {
+      // Ensure path variable is valid
+      function isOwner() {
+        return isVerified() && request.auth.uid == userId && isValidId(userId);
+      }
+
+      match /family/{memberId} {
+        allow list, get: if isOwner();
+        allow create: if isOwner() && isValidFamilyMember(incoming());
+        allow update: if isOwner() && isValidFamilyMember(incoming()) && incoming().id == existing().id;
+        allow delete: if isOwner();
+      }
+
+      match /milestones/{eventId} {
+        allow list, get: if isOwner();
+        allow create: if isOwner() && isValidCountdownEvent(incoming());
+        allow update: if isOwner() && isValidCountdownEvent(incoming()) && incoming().id == existing().id;
+        allow delete: if isOwner();
+      }
+
+      match /moments/{momentId} {
+        allow list, get: if isOwner();
+        allow create: if isOwner() && isValidMoment(incoming());
+        allow update: if isOwner() && isValidMoment(incoming()) && incoming().id == existing().id;
+        allow delete: if isOwner();
+      }
+
+      match /albums/{albumId} {
+        allow list, get: if isOwner();
+        allow create: if isOwner() && isValidAlbum(incoming());
+        allow update: if isOwner() && isValidAlbum(incoming()) && incoming().userId == existing().userId;
+        allow delete: if isOwner();
+
+        match /photos/{photoId} {
+          allow list, get: if isOwner();
+          allow create: if isOwner() && isValidAlbumPhoto(incoming());
+          allow update: if isOwner() && isValidAlbumPhoto(incoming());
+          allow delete: if isOwner();
+        }
+      }
+    }
+  }
+}

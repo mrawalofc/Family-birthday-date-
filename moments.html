@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Our Magic Moments ✨</title>
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;600;700&family=Great+Vibes&family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+            overflow-x: hidden;
+            font-family: 'Hind Siliguri', 'Poppins', sans-serif;
+            position: relative; color: white;
+        }
+        @keyframes gradientBG { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        
+        .hearts-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; z-index: 1; }
+        .heart { position: absolute; color: rgba(255,255,255,0.15); font-size: 20px; animation: floatUp linear infinite; bottom: -50px; }
+        @keyframes floatUp { 0% { transform: translateY(0) rotate(0deg) scale(1); opacity: 0.8; } 100% { transform: translateY(-100vh) rotate(360deg) scale(0.5); opacity: 0; } }
+
+        .navbar { position: fixed; top: 0; left: 0; width: 100%; z-index: 200; background: rgba(0,0,0,0.3); backdrop-filter: blur(15px); border-bottom: 1px solid rgba(255,255,255,0.1); padding: 0 20px; transition: all 0.3s; }
+        .nav-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 65px; }
+        .nav-logo { font-family: 'Great Vibes', cursive; font-size: 2rem; color: #fff; text-shadow: 0 0 15px rgba(255,105,180,0.8); text-decoration: none; }
+        .nav-links { display: flex; gap: 8px; flex-wrap: wrap; }
+        .nav-link { padding: 8px 16px; border: none; background: transparent; color: rgba(255,255,255,0.7); font-family: 'Poppins', sans-serif; font-size: 0.85rem; cursor: pointer; border-radius: 20px; transition: all 0.3s ease; text-decoration: none; display: flex; align-items: center; gap: 5px; }
+        .nav-link:hover { background: rgba(255,255,255,0.15); color: white; }
+        .nav-link.active { background: rgba(255,105,180,0.4); color: white; font-weight: 600; }
+
+        .lang-toggle { position: fixed; top: 85px; right: 20px; z-index: 100; background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 30px; padding: 4px; display: flex; gap: 4px; border: 1px solid rgba(255,255,255,0.1); }
+        .lang-btn { padding: 6px 14px; border: none; background: transparent; color: white; font-family: 'Poppins', sans-serif; font-size: 12px; cursor: pointer; border-radius: 25px; transition: all 0.3s ease; }
+        .lang-btn.active { background: rgba(255,255,255,0.25); font-weight: 600; }
+
+        .page-header { text-align: center; padding: 140px 20px 40px; position: relative; z-index: 10; }
+        .page-header h2 { font-family: 'Great Vibes', cursive; font-size: 4rem; text-shadow: 0 0 30px rgba(255,105,180,0.8); margin-bottom: 10px; }
+        .page-header p { color: rgba(255,255,255,0.7); font-size: 1.1rem; italic; }
+
+        .timeline-container { max-width: 900px; margin: 0 auto; padding: 40px 20px 100px; position: relative; z-index: 10; }
+        .timeline-line { position: absolute; left: 50%; transform: translateX(-50%); width: 2px; height: 100%; background: linear-gradient(to bottom, transparent, rgba(255,255,255,0.2), transparent); top: 0; }
+        
+        .moment-item { margin-bottom: 80px; position: relative; width: 50%; padding: 0 40px; }
+        .moment-item:nth-child(odd) { left: 0; text-align: right; }
+        .moment-item:nth-child(even) { left: 50%; text-align: left; }
+        
+        .moment-dot { position: absolute; top: 20px; width: 20px; height: 20px; background: #ff69b4; border-radius: 50%; box-shadow: 0 0 20px #ff69b4; z-index: 5; border: 4px solid #1a0a2e; }
+        .moment-item:nth-child(odd) .moment-dot { right: -10px; }
+        .moment-item:nth-child(even) .moment-dot { left: -10px; }
+
+        .moment-card {
+            background: rgba(255,255,255,0.05); backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.1); border-radius: 30px;
+            padding: 30px; transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.3); position: relative; overflow: hidden;
+        }
+        .moment-card:hover { transform: scale(1.05); background: rgba(255,255,255,0.1); border-color: rgba(255,105,180,0.3); }
+        .moment-card::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle, rgba(255,105,180,0.1) 0%, transparent 70%); pointer-events: none; }
+
+        .moment-date { font-family: 'Poppins', sans-serif; font-size: 0.8rem; font-weight: 700; color: #ff69b4; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; display: block; }
+        .moment-title { font-family: 'Great Vibes', cursive; font-size: 2.2rem; color: #fff; margin-bottom: 15px; }
+        .moment-desc { font-size: 0.95rem; color: rgba(255,255,255,0.6); line-height: 1.8; font-style: italic; }
+        
+        .moment-icon { font-size: 2.5rem; margin-bottom: 15px; display: block; }
+
+        @media (max-width: 768px) {
+            .timeline-line { left: 40px; }
+            .moment-item { width: 100% !important; left: 0 !important; padding-left: 80px !important; padding-right: 20px !important; text-align: left !important; }
+            .moment-dot { left: 30px !important; }
+            .page-header h2 { font-size: 2.8rem; }
+            .moment-title { font-size: 1.8rem; }
+        }
+
+        .scroll-reveal { opacity: 0; transform: translateY(30px); transition: all 0.8s ease-out; }
+        .scroll-reveal.visible { opacity: 1; transform: translateY(0); }
+    </style>
+</head>
+<body>
+    <div class="hearts-container" id="heartsContainer"></div>
+    
+    <nav class="navbar">
+        <div class="nav-inner">
+            <a href="index.html" class="nav-logo">💕 Love World</a>
+            <div class="nav-links">
+                <a href="index.html" class="nav-link">🏠 <span>Home</span></a>
+                <a href="messages.html" class="nav-link">💌 <span>Messages</span></a>
+                <a href="gallery.html" class="nav-link">🖼️ <span>Gallery</span></a>
+                <a href="countdown.html" class="nav-link">⏳ <span>Countdown</span></a>
+                <a href="moments.html" class="nav-link active">✨ <span>Moments Time</span></a>
+                <a href="quiz.html" class="nav-link">❓ <span>Quiz</span></a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="lang-toggle">
+        <button class="lang-btn active" onclick="setLang('bn')">বাংলা</button>
+        <button class="lang-btn" onclick="setLang('en')">English</button>
+    </div>
+
+    <div class="page-header">
+        <h2 id="pageTitle">আমাদের সোনালী সময়</h2>
+        <p id="pageSub">স্মৃতিগুলো আমাদের কাছে চিরকাল অমলিন থাকবে ✨</p>
+    </div>
+
+    <div class="timeline-container">
+        <div class="timeline-line"></div>
+        
+        <div id="momentsList">
+            <!-- Moments injected here -->
+        </div>
+
+        <div style="text-align: center; margin-top: 100px;">
+            <div style="font-size: 3rem; animation: bounce 2s infinite;">❤️</div>
+            <p style="color: rgba(255,255,255,0.3); font-size: 0.8rem; letter-spacing: 5px; margin-top: 20px; font-weight: 700;">MORE MEMORIES AWAIT...</p>
+        </div>
+    </div>
+
+    <script>
+        const moments = [
+            {
+                date: "September 1, 2024",
+                icon: "☕",
+                title: { bn: "আমাদের প্রথম দেখা", en: "Our First Meeting" },
+                desc: { bn: "সেই দিনটি ছিল অসাধারণ। তোমার সাথে প্রথম দেখা হওয়ার মুহূর্তটি আমি কখনোই ভুলবো না।", en: "That day was extraordinary. I will never forget the moment I first saw you." }
+            },
+            {
+                date: "October 15, 2024",
+                icon: "🌳",
+                title: { bn: "প্রথম ডেট", en: "First Date" },
+                desc: { bn: "আমরা কত কথা বলেছিলাম! পার্কের সেই বিকেলটি ছিল জাদুকরী।", en: "We talked so much! That afternoon in the park was magical." }
+            },
+            {
+                date: "January 1, 2025",
+                icon: "🎆",
+                title: { bn: "নতুন বছর একসাথে", en: "New Year Together" },
+                desc: { bn: "বছরের প্রথম মুহূর্ত তোমার হাত ধরে শুরু করা ছিল আমার জীবনের সেরা পাওয়া।", en: "Starting the first moment of the year holding your hand was the best gift of my life." }
+            },
+            {
+                date: "Future",
+                icon: "✈️",
+                title: { bn: "ভবিষ্যতের স্বপ্ন", en: "Future Dreams" },
+                desc: { bn: "আমরা একসাথে অনেক পথ পাড়ি দেবো, অনেক স্মৃতি তৈরি করবো। ইনশাআল্লাহ।", en: "We will walk a long way together and create many beautiful memories. Inshallah." }
+            }
+        ];
+
+        let currentLang = 'bn';
+
+        function renderMoments() {
+            const list = document.getElementById('momentsList');
+            list.innerHTML = '';
+            
+            moments.forEach((m, idx) => {
+                const item = document.createElement('div');
+                item.className = 'moment-item scroll-reveal';
+                item.innerHTML = `
+                    <div class="moment-dot"></div>
+                    <div class="moment-card">
+                        <span class="moment-icon">${m.icon}</span>
+                        <span class="moment-date">${m.date}</span>
+                        <h3 class="moment-title">${m.title[currentLang]}</h3>
+                        <p class="moment-desc">${m.desc[currentLang]}</p>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+
+            // Re-trigger scroll reveal
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('visible');
+                    }
+                });
+            }, { threshold: 0.1 });
+
+            document.querySelectorAll('.scroll-reveal').forEach(el => observer.observe(el));
+        }
+
+        function setLang(lang) {
+            currentLang = lang;
+            document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.innerText.toLowerCase().includes(lang === 'bn' ? 'বাংলা' : 'eng')));
+            
+            document.getElementById('pageTitle').innerText = lang === 'bn' ? "আমাদের সোনালী সময়" : "Our Moments Time";
+            document.getElementById('pageSub').innerText = lang === 'bn' ? "স্মৃতিগুলো আমাদের কাছে চিরকাল অমলিন থাকবে ✨" : "Memories that stay with us forever ✨";
+            
+            renderMoments();
+        }
+
+        function createHearts() {
+            const container = document.getElementById('heartsContainer');
+            for (let i = 0; i < 20; i++) {
+                const heart = document.createElement('div');
+                heart.className = 'heart';
+                heart.innerHTML = ['❤️','💖','✨','🌸'][Math.floor(Math.random() * 4)];
+                heart.style.left = Math.random() * 100 + '%';
+                heart.style.animationDuration = (Math.random() * 8 + 7) + 's';
+                heart.style.animationDelay = (Math.random() * 10) + 's';
+                container.appendChild(heart);
+            }
+        }
+
+        createHearts();
+        renderMoments();
+    </script>
+</body>
+</html>
