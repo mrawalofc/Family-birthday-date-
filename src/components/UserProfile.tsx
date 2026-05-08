@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { User, Camera, Edit2, Save, X, LogIn, LogOut, Loader2 } from 'lucide-react';
+import { User, Camera, Edit2, Save, X, LogIn, LogOut, Loader2, Download, Upload, HardDrive, Trash2, Clock, CheckCircle2, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth } from '../lib/firebase';
 import { signOut } from 'firebase/auth';
 import { SlideshowManager } from './SlideshowManager';
+import { LocalBackupService, AppData } from '../services/localBackupService';
+import { sounds } from '../lib/sounds';
 
 interface ProfileData {
   name: string;
@@ -50,7 +52,15 @@ export const UserProfile: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
       loginSub: 'Sync features require an account.',
       googleBtn: 'Sign in',
       logoutBtn: 'Sign Out',
-      authError: 'Authentication failed.'
+      authError: 'Authentication failed.',
+      backupTitle: 'ফোন ব্যাকআপ (Local Storage)',
+      backupSub: 'আপনার ডাটা ফোনের মেমোরিতে সেভ করে রাখুন',
+      exportBtn: 'ফাইলে সেভ করুন (Export)',
+      importBtn: 'ফাইল থেকে রিস্টোর (Import)',
+      snapshots: 'রিস্টোর পয়েন্ট (Internal Copy)',
+      createSnap: 'নতুন কপি তৈরি করুন',
+      snapHelp: 'এটি ফোনের অ্যাপ মেমোরিতে একটি কপি তৈরি করে রাখবে।',
+      snapshotLabel: 'ম্যানুয়াল ব্যাকআপ'
     },
     en: {
       title: 'User Profile',
@@ -66,11 +76,31 @@ export const UserProfile: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
       loginSub: 'Sync features require an account.',
       googleBtn: 'Sign in',
       logoutBtn: 'Sign Out',
-      authError: 'Authentication failed.'
+      authError: 'Authentication failed.',
+      backupTitle: 'Phone Backup (Local)',
+      backupSub: 'Save your data to your phone storage',
+      exportBtn: 'Export to File',
+      importBtn: 'Import from File',
+      snapshots: 'Restore Points',
+      createSnap: 'Create Restore Point',
+      snapHelp: 'This saves a copy in your browser\'s internal memory.',
+      snapshotLabel: 'Manual Backup'
     }
   };
 
   const l = t[lang];
+
+  const [restorePoints, setRestorePoints] = useState<any[]>([]);
+  const [isBackingUp, setIsBackingUp] = useState(false);
+
+  useEffect(() => {
+    loadRestorePoints();
+  }, []);
+
+  const loadRestorePoints = async () => {
+    const points = await LocalBackupService.listRestorePoints();
+    setRestorePoints(points);
+  };
 
   useEffect(() => {
     localStorage.setItem('profile_theme', theme);
@@ -97,9 +127,59 @@ export const UserProfile: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
   const handleLogout = async () => {
     try {
       await signOut(auth);
+      sounds.play('click');
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const handleExport = async () => {
+    sounds.play('success');
+    await LocalBackupService.exportToFile();
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const data = JSON.parse(event.target?.result as string) as AppData;
+        if (confirm(lang === 'bn' ? "আপনি কি ডাটা রিস্টোর করতে চান? বর্তমান ডাটা বদলে যাবে।" : "Do you want to restore? Current data will be replaced.")) {
+          LocalBackupService.applyData(data);
+          sounds.play('success');
+          window.location.reload();
+        }
+      } catch (err) {
+        alert("Invalid file format");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleCreateSnapshot = async () => {
+    setIsBackingUp(true);
+    sounds.play('click');
+    await LocalBackupService.createRestorePoint(lang === 'bn' ? 'ম্যানুয়াল ব্যাকআপ' : 'Manual Backup');
+    await loadRestorePoints();
+    setIsBackingUp(false);
+    sounds.play('success');
+  };
+
+  const handleRestoreSnapshot = async (point: any) => {
+    if (confirm(lang === 'bn' ? "এই পয়েন্ট থেকে রিস্টোর করতে চান?" : "Restore from this point?")) {
+      LocalBackupService.applyData(point);
+      sounds.play('success');
+      window.location.reload();
+    }
+  };
+
+  const handleDeleteSnapshot = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    await LocalBackupService.deleteRestorePoint(id);
+    await loadRestorePoints();
+    sounds.play('error');
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -194,6 +274,88 @@ export const UserProfile: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
               {l.edit}
             </button>
           )}
+        </div>
+      </motion.div>
+
+      {/* Local Backup & Snapshots Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white/5 backdrop-blur-xl rounded-[32px] p-8 border border-white/10 shadow-xl space-y-8"
+      >
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+              <HardDrive size={24} className={currentTheme.text} />
+              {l.backupTitle}
+            </h3>
+          </div>
+          <p className="text-white/40 text-sm mb-6">{l.backupSub}</p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <button
+              onClick={handleExport}
+              className="flex items-center justify-center gap-3 bg-white/10 hover:bg-white/20 text-white py-4 rounded-2xl font-bold transition-all border border-white/10 active:scale-95"
+            >
+              <Download size={20} />
+              {l.exportBtn}
+            </button>
+            <label className="flex items-center justify-center gap-3 bg-white/10 hover:bg-white/20 text-white py-4 rounded-2xl font-bold transition-all border border-white/10 cursor-pointer active:scale-95">
+              <Upload size={20} />
+              {l.importBtn}
+              <input type="file" className="hidden" accept=".json" onChange={handleImport} />
+            </label>
+          </div>
+        </div>
+
+        <div className="pt-8 border-t border-white/5">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="text-sm font-bold uppercase tracking-widest text-white/40">{l.snapshots}</h4>
+            <button
+              disabled={isBackingUp}
+              onClick={handleCreateSnapshot}
+              className={`text-xs font-bold ${currentTheme.text} hover:opacity-80 transition-opacity flex items-center gap-1`}
+            >
+              {isBackingUp ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+              {l.createSnap}
+            </button>
+          </div>
+          <p className="text-[10px] text-white/20 mb-4">{l.snapHelp}</p>
+          
+          <div className="space-y-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+            {restorePoints.length === 0 ? (
+              <div className="text-center py-8 bg-white/5 rounded-2xl border border-dashed border-white/10">
+                <Clock className="mx-auto mb-2 text-white/10" size={24} />
+                <p className="text-xs text-white/20 italic">{lang === 'bn' ? 'কোনো রিস্টোর পয়েন্ট নেই' : 'No restore points yet'}</p>
+              </div>
+            ) : (
+              restorePoints.map((point) => (
+                <div
+                  key={point.id}
+                  onClick={() => handleRestoreSnapshot(point)}
+                  className="bg-white/5 hover:bg-white/10 rounded-2xl p-4 border border-white/10 transition-all cursor-pointer group flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-lg ${currentTheme.color}/20 flex items-center justify-center ${currentTheme.text}`}>
+                      <CheckCircle2 size={16} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-white">{point.label}</p>
+                      <p className="text-[10px] text-white/40 font-mono tracking-tighter">
+                        {new Date(point.timestamp).toLocaleString(lang === 'bn' ? 'bn-BD' : 'en-US')}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => handleDeleteSnapshot(point.id, e)}
+                    className="p-2 opacity-0 group-hover:opacity-100 hover:bg-red-500/20 text-red-500 rounded-lg transition-all"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </motion.div>
 

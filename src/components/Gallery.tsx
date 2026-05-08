@@ -357,6 +357,11 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
   const deletePhoto = async (photoId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!selectedAlbum) return;
+
+    if (!confirm(lang === 'bn' ? "আপনি কি নিশ্চিত যে আপনি এই ছবিটি মুছে ফেলতে চান?" : "Are you sure you want to delete this photo?")) {
+      return;
+    }
+
     sounds.play('error');
     
     const updatedAlbums = albums.map(a => {
