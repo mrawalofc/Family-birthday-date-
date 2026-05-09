@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, Trash2, Image as ImageIcon, Loader2, X, AlertCircle, Save, Upload, Cloud, CloudOff, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, Image as ImageIcon, Loader2, X, AlertCircle, Save, Upload, Cloud, CloudOff, RefreshCw, Check } from 'lucide-react';
 import { sounds } from '../lib/sounds';
-import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query, writeBatch, getDocs, orderBy, limit } from 'firebase/firestore';
+import { db, auth, storage, handleFirestoreError, OperationType } from '../lib/firebase';
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query, writeBatch, getDocs, orderBy, limit, where } from 'firebase/firestore';
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { ConfirmationDialog } from './ConfirmationDialog';
 
 interface SlideshowImage {
@@ -12,6 +13,7 @@ interface SlideshowImage {
   caption?: string;
   createdAt: string;
   userId: string;
+  isPublic: boolean;
 }
 
 const STORAGE_KEY = 'love_world_slideshow';
@@ -27,6 +29,7 @@ export const SlideshowManager: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
   const [isInitialSync, setIsInitialSync] = useState(true);
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
+  const [uploadingFiles, setUploadingFiles] = useState<{ name: string; progress: number; status: 'uploading' | 'success' | 'error' }[]>([]);
 
   // Firestore Sync Logic
   useEffect(() => {
@@ -52,7 +55,7 @@ export const SlideshowManager: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
       }
 
       // 2. Subscription
-      const q = query(slidesRef, orderBy('createdAt', 'desc'), limit(15));
+      const q = query(slidesRef, where('isPublic', '==', true), orderBy('createdAt', 'desc'), limit(15));
       unsubscribe = onSnapshot(q, (snap) => {
         const firestoreImages: SlideshowImage[] = [];
         snap.forEach(doc => firestoreImages.push(doc.data() as SlideshowImage));
@@ -76,7 +79,11 @@ export const SlideshowManager: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
     if (!auth.currentUser) return;
     try {
       setSyncStatus('syncing');
-      await setDoc(doc(db, 'slideshow', item.id), { ...item, userId: auth.currentUser.uid });
+      await setDoc(doc(db, 'slideshow', item.id), { 
+        ...item, 
+        userId: auth.currentUser.uid,
+        isPublic: true // Ensure isPublic is explicitly set for security rules
+      });
       setSyncStatus('synced');
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, `slideshow/${item.id}`);
@@ -128,6 +135,17 @@ export const SlideshowManager: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
   };
 
   const l = t[lang];
+  const dataURLtoBlob = (dataurl: string) => {
+    const arr = dataurl.split(',');
+    const mime = arr[0].match(/:(.*?);/)?.[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+  };
 
   const compressImage = (base64Str: string): Promise<string> => {
     return new Promise((resolve) => {
@@ -155,7 +173,7 @@ export const SlideshowManager: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx?.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.6)); // 0.6 quality for more compact storage
+        resolve(canvas.toDataURL('image/jpeg', 0.8)); // 0.8 quality for better clarity
       };
     });
   };
@@ -223,18 +241,57 @@ export const SlideshowManager: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
 
     setLoading(true);
     setError(null);
+    const user = auth.currentUser;
 
     try {
       const newImages: SlideshowImage[] = [];
 
       if (selectedFiles.length > 0) {
-        for (const file of selectedFiles) {
-          newImages.push({
-            id: crypto.randomUUID(),
-            url: file.url,
+        setUploadingFiles(selectedFiles.map(f => ({ name: f.name, progress: 0, status: 'uploading' })));
+        
+        for (let i = 0; i < selectedFiles.length; i++) {
+          const file = selectedFiles[i];
+          const photoId = crypto.randomUUID();
+          let finalUrl = file.url;
+
+          if (user) {
+            const blob = dataURLtoBlob(file.url);
+            const storageRef = ref(storage, `slideshow/${photoId}`);
+            const uploadTask = uploadBytesResumable(storageRef, blob);
+
+            finalUrl = await new Promise<string>((resolve, reject) => {
+              uploadTask.on('state_changed', 
+                (snapshot) => {
+                  const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                  setUploadingFiles(prev => {
+                    const next = [...prev];
+                    next[i] = { ...next[i], progress };
+                    return next;
+                  });
+                },
+                (error) => reject(error),
+                async () => {
+                  const url = await getDownloadURL(uploadTask.snapshot.ref);
+                  resolve(url);
+                }
+              );
+            });
+          }
+
+          const imgItem: SlideshowImage = {
+            id: photoId,
+            url: finalUrl,
             caption: newCaption.trim(),
-            userId: 'local-user',
+            userId: user?.uid || 'local-user',
             createdAt: new Date().toISOString(),
+            isPublic: true
+          };
+
+          newImages.push(imgItem);
+          setUploadingFiles(prev => {
+            const next = [...prev];
+            next[i] = { ...next[i], status: 'success' };
+            return next;
           });
         }
       } else if (newUrl.trim()) {
@@ -242,8 +299,9 @@ export const SlideshowManager: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
           id: crypto.randomUUID(),
           url: newUrl.trim(),
           caption: newCaption.trim(),
-          userId: 'local-user',
+          userId: user?.uid || 'local-user',
           createdAt: new Date().toISOString(),
+          isPublic: true
         });
       }
 
@@ -251,11 +309,14 @@ export const SlideshowManager: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
       saveToLocal(updated);
       
       // Save each new image to Firestore
-      newImages.forEach(img => saveToFirestore(img));
+      for (const img of newImages) {
+        await saveToFirestore(img);
+      }
 
       setNewUrl('');
       setNewCaption('');
       setSelectedFiles([]);
+      setUploadingFiles([]);
       setIsAdding(false);
       sounds.play('success');
     } catch (err) {
@@ -275,6 +336,12 @@ export const SlideshowManager: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
     const { id } = deleteConfirm;
     const updated = images.filter(img => img.id !== id);
     saveToLocal(updated);
+    if (auth.currentUser) {
+      try {
+        const storageRef = ref(storage, `slideshow/${id}`);
+        await deleteObject(storageRef);
+      } catch (e) { console.error('Failed to delete from storage:', e); }
+    }
     removeFromFirestore(id);
     sounds.play('error');
   };
@@ -418,6 +485,31 @@ export const SlideshowManager: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
                     <AlertCircle size={16} />
                     <span className="font-medium">{error}</span>
                   </motion.div>
+                )}
+
+                {uploadingFiles.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{lang === 'bn' ? 'আপলোড হচ্ছে...' : 'Uploading...'}</span>
+                    </div>
+                    <div className="space-y-2">
+                       {uploadingFiles.map((file, i) => (
+                         <div key={i} className="space-y-1">
+                           <div className="flex items-center justify-between text-[9px] text-white/60">
+                             <span className="truncate max-w-[150px]">{file.name}</span>
+                             {file.status === 'success' ? <Check size={10} className="text-emerald-500" /> : <span>{Math.round(file.progress)}%</span>}
+                           </div>
+                           <div className="h-0.5 bg-white/5 rounded-full overflow-hidden">
+                             <motion.div 
+                               initial={{ width: 0 }}
+                               animate={{ width: `${file.progress}%` }}
+                               className={`h-full ${file.status === 'success' ? 'bg-emerald-500' : 'bg-pink-500'}`}
+                             />
+                           </div>
+                         </div>
+                       ))}
+                    </div>
+                  </div>
                 )}
 
                 <div className="flex gap-3 pt-2">

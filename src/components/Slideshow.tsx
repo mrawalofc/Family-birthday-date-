@@ -2,14 +2,16 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, query, orderBy, onSnapshot, where, limit } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Settings, Plus, Image as ImageIcon, X } from 'lucide-react';
 import { useAuthState } from 'react-firebase-hooks/auth';
+import { SlideshowManager } from './SlideshowManager';
 
 interface SlideshowImage {
   id: string;
   url: string;
   caption?: string;
   createdAt: string;
+  isPublic: boolean;
 }
 
 const STORAGE_KEY = 'love_world_slideshow';
@@ -32,14 +34,16 @@ const DEFAULT_IMAGES = [
   }
 ];
 
-export const Slideshow: React.FC = () => {
+export const Slideshow: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
   const [images, setImages] = useState<SlideshowImage[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState(0);
+  const [isManagerOpen, setIsManagerOpen] = useState(false);
+  const [user] = useAuthState(auth);
 
   useEffect(() => {
     const slidesRef = collection(db, 'slideshow');
-    const q = query(slidesRef, orderBy('createdAt', 'desc'), limit(15));
+    const q = query(slidesRef, where('isPublic', '==', true), orderBy('createdAt', 'desc'), limit(15));
 
     const unsubscribe = onSnapshot(q, (snap) => {
       const firestoreImages: SlideshowImage[] = [];
@@ -219,6 +223,21 @@ export const Slideshow: React.FC = () => {
         </div>
       </div>
 
+      {/* Management Action - Direct access to uploads */}
+      {user && (
+        <div className="absolute top-8 right-8 z-30">
+          <button 
+            onClick={() => setIsManagerOpen(true)}
+            className="flex items-center gap-2 bg-pink-500/80 hover:bg-pink-500 text-white px-5 py-2.5 rounded-full backdrop-blur-xl border border-white/20 shadow-2xl hover:scale-105 active:scale-95 transition-all group"
+          >
+            <ImageIcon size={14} className="group-hover:rotate-12 transition-transform" />
+            <span className="text-[10px] font-black uppercase tracking-widest">
+              {lang === 'bn' ? 'অ্যালবাম ম্যানেজ' : 'Manage Album'}
+            </span>
+          </button>
+        </div>
+      )}
+
       {/* Navigation Indicators - Minimalist Dash dots */}
       <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex gap-2 z-30">
         {images.map((_, idx) => (
@@ -236,6 +255,39 @@ export const Slideshow: React.FC = () => {
           </button>
         ))}
       </div>
+      {/* Management Modal */}
+      <AnimatePresence>
+        {isManagerOpen && (
+          <div className="fixed inset-0 z-[200] overflow-y-auto bg-black/95 backdrop-blur-3xl flex items-start justify-center py-20 px-6">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="w-full max-w-5xl"
+            >
+              <div className="flex items-center justify-between mb-12">
+                <div>
+                  <h2 className="text-4xl font-display font-black text-white mb-2 uppercase tracking-tighter">
+                    {lang === 'bn' ? 'অ্যালবাম ম্যানেজমেন্ট' : 'Album Management'}
+                  </h2>
+                  <p className="text-white/40 text-xs font-bold uppercase tracking-[0.3em]">
+                    {lang === 'bn' ? 'ছবি আপলোড এবং মুছুন' : 'Upload & Manage Memories'}
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setIsManagerOpen(false)}
+                  className="w-14 h-14 rounded-full bg-white/5 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all border border-white/10"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+              <div className="bg-white/5 rounded-[40px] p-8 md:p-12 border border-white/10">
+                <SlideshowManager lang={lang} />
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

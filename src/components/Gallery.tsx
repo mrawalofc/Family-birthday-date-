@@ -5,7 +5,8 @@ import Masonry from 'react-masonry-css';
 import { sounds } from '../lib/sounds';
 import { SlideshowManager } from './SlideshowManager';
 import { collection, addDoc, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, getDocs, writeBatch, serverTimestamp, where, setDoc } from 'firebase/firestore';
-import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
+import { db, auth, storage, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { ConfirmationDialog } from './ConfirmationDialog';
 
@@ -401,6 +402,16 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
       if (user) {
         try {
           setSyncStatus('syncing');
+          // Delete photos from storage first
+          const album = albums.find(a => a.id === id);
+          if (album) {
+            for (const photo of album.photos) {
+              try {
+                const storageRef = ref(storage, `users/${user.uid}/albums/${id}/${photo.id}`);
+                await deleteObject(storageRef);
+              } catch (e) { console.error('Failed to delete photo from storage:', e); }
+            }
+          }
           await deleteDoc(doc(db, 'users', user.uid, 'albums', id));
           setSyncStatus('synced');
         } catch (err) {
@@ -416,6 +427,12 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
       if (user) {
         try {
           setSyncStatus('syncing');
+          // Delete from storage
+          const storageRef = ref(storage, `users/${user.uid}/albums/${selectedAlbum.id}/${id}`);
+          try {
+            await deleteObject(storageRef);
+          } catch (e) { console.error('Failed to delete photo from storage:', e); }
+          
           await deleteDoc(doc(db, 'users', user.uid, 'albums', selectedAlbum.id, 'photos', id));
           setSyncStatus('synced');
         } catch (err) {
@@ -499,13 +516,25 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx?.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.7));
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
       };
     });
   };
 
+  const dataURLtoBlob = (dataurl: string) => {
+    const arr = dataurl.split(',');
+    const mime = arr[0].match(/:(.*?);/)?.[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+  };
+
   const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!selectedAlbum) return;
+    if (!selectedAlbum || !user) return;
     const files = Array.from(event.target.files || []) as File[];
     if (files.length > 0) {
       setIsUploading(true);
@@ -523,6 +552,12 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
           
+          setUploadingFiles(prev => {
+            const next = [...prev];
+            next[i] = { ...next[i], status: 'uploading' };
+            return next;
+          });
+
           const base64 = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(reader.result as string);
@@ -531,31 +566,50 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
           });
 
           const compressed = await compressImage(base64);
+          const blob = dataURLtoBlob(compressed);
           const photoId = crypto.randomUUID();
+          
+          // Firebase Storage Path: users/{userId}/albums/{albumId}/{photoId}
+          const storageRef = ref(storage, `users/${user.uid}/albums/${selectedAlbum.id}/${photoId}`);
+          const uploadTask = uploadBytesResumable(storageRef, blob);
+
+          const downloadURL = await new Promise<string>((resolve, reject) => {
+            uploadTask.on('state_changed', 
+              (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                setUploadingFiles(prev => {
+                  const next = [...prev];
+                  next[i] = { ...next[i], progress };
+                  return next;
+                });
+              },
+              (error) => reject(error),
+              async () => {
+                const url = await getDownloadURL(uploadTask.snapshot.ref);
+                resolve(url);
+              }
+            );
+          });
+
           const photo: AlbumPhoto = {
             id: photoId,
-            url: compressed,
+            url: downloadURL,
             caption: '',
             createdAt: new Date().toISOString()
           };
 
-          if (user && selectedAlbum) {
-            try {
-              const photoRef = doc(db, 'users', user.uid, 'albums', selectedAlbum.id, 'photos', photoId);
-              await setDoc(photoRef, photo);
+          const photoRef = doc(db, 'users', user.uid, 'albums', selectedAlbum.id, 'photos', photoId);
+          await setDoc(photoRef, photo);
 
-              // Auto-add to slideshow if enabled
-              if (autoAddToSlideshow) {
-                const slidesRef = doc(db, 'slideshow', photoId);
-                await setDoc(slidesRef, {
-                  ...photo,
-                  userId: user.uid,
-                  caption: photo.caption || (lang === 'bn' ? 'অ্যালবাম থেকে' : 'From Album')
-                });
-              }
-            } catch (err) {
-              handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/albums/${selectedAlbum.id}/photos/${photoId}`);
-            }
+          // Auto-add to slideshow if enabled
+          if (autoAddToSlideshow) {
+            const slidesRef = doc(db, 'slideshow', photoId);
+            await setDoc(slidesRef, {
+              ...photo,
+              userId: user.uid,
+              isPublic: true,
+              caption: photo.caption || (lang === 'bn' ? 'অ্যালবাম থেকে' : 'From Album')
+            });
           }
 
           newPhotos.push(photo);
@@ -585,14 +639,17 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
         setTimeout(() => {
           setIsUploading(false);
           setUploadingFiles([]);
-        }, 1500);
+        }, 3000);
       } catch (err) {
         console.error(err);
         setUploadResult({ 
           type: 'error', 
           message: lang === 'bn' ? 'ছবি যোগ করতে ব্যর্থ হয়েছে।' : 'Failed to add photos.' 
         });
-        setTimeout(() => setIsUploading(false), 3000);
+        setTimeout(() => {
+          setIsUploading(false);
+          setUploadingFiles([]);
+        }, 5000);
       }
     }
   };
@@ -838,103 +895,398 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
 
   return (
     <div className="w-full max-w-7xl mx-auto py-12 px-6 relative">
-      {/* Premium Header */}
-      <div className="text-center mb-16 space-y-6 relative z-10">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="inline-flex items-center gap-3 px-6 py-2 rounded-full glass-card luxury-text text-[#c5a059] mb-4 shadow-xl"
-        >
-          <Camera size={14} className="fill-[#c5a059]" />
-          {lang === 'bn' ? 'গ্যালারি আমাদের ডায়েরি' : 'Our Visual Diary'}
-        </motion.div>
-        
-        <h2 className="font-display font-black text-7xl md:text-[110px] text-gradient italic leading-[0.8] tracking-tighter">
-          {lang === 'bn' ? 'স্মৃতির গ্যালারি' : 'The Gallery'}
-        </h2>
-        
-        <motion.p 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
-          className="luxury-text pt-6 max-w-xl mx-auto leading-relaxed opacity-60"
-        >
-          {lang === 'bn' ? 'আমাদের পরিবারের সোনালী মুহূর্তগুলো' : 'Golden Moments of Our Family'}
-        </motion.p>
-      </div>
-
       {/* Premium Background Ambiance */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-pink-500/10 blur-[120px] rounded-full animate-pulse" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-rose-500/10 blur-[120px] rounded-full animate-pulse" style={{ animationDelay: '2s' }} />
       </div>
 
-      {/* Tab Controls - Precise Segmented Control */}
-      <div className="relative z-10 flex flex-col items-center mb-12 px-4 gap-6">
-        {/* Sync Status Badge */}
-        {user && syncStatus !== 'idle' && (
-          <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 border ${
-            syncStatus === 'synced' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
-            syncStatus === 'syncing' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 
-            'bg-rose-500/10 text-rose-400 border-rose-500/20'
-          }`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${
-              syncStatus === 'synced' ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 
-              syncStatus === 'syncing' ? 'bg-blue-500 animate-pulse' : 'bg-rose-500'
-            }`} />
-            {syncStatus}
-          </div>
-        )}
+      <AnimatePresence mode="wait">
+        {!selectedAlbum ? (
+          <motion.div
+            key="gallery-home"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            {/* Premium Header */}
+            <div className="text-center mb-16 space-y-6 relative z-10">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="inline-flex items-center gap-3 px-6 py-2 rounded-full glass-card luxury-text text-[#c5a059] mb-4 shadow-xl"
+              >
+                <Camera size={14} className="fill-[#c5a059]" />
+                {lang === 'bn' ? 'গ্যালারি আমাদের ডায়েরি' : 'Our Visual Diary'}
+              </motion.div>
+              
+              <h2 className="font-display font-black text-7xl md:text-[110px] text-gradient italic leading-[0.8] tracking-tighter">
+                {lang === 'bn' ? 'স্মৃতির গ্যালারি' : 'The Gallery'}
+              </h2>
+              
+              <motion.p 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
+                className="luxury-text pt-6 max-w-xl mx-auto leading-relaxed opacity-60"
+              >
+                {lang === 'bn' ? 'আমাদের পরিবারের সোনালী মুহূর্তগুলো' : 'Golden Moments of Our Family'}
+              </motion.p>
+            </div>
 
-        <div className="relative bg-[#1c1c1e]/60 backdrop-blur-3xl p-1 rounded-[24px] flex border border-white/5 shadow-[0_15px_40px_rgba(0,0,0,0.5)]">
-          {['slideshow', 'albums', 'art'].map((type) => (
-            <button
-              key={type}
-              onClick={() => {
-                setActiveTab(type as any);
-                if (type !== 'albums') setSelectedAlbum(null);
-              }}
-              className={`relative z-10 flex items-center justify-center gap-2 px-6 py-3 rounded-[20px] transition-all duration-500 font-bold text-[11px] tracking-tight whitespace-nowrap ${
-                activeTab === type ? 'text-white' : 'text-white/40 hover:text-white/60'
-              }`}
-            >
-              {activeTab === type && (
-                <motion.div
-                  layoutId="active-pill"
-                  className="absolute inset-0 bg-white/10 rounded-[20px] border border-white/10 shadow-lg z-[-1]"
-                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                />
+            {/* Tab Controls */}
+            <div className="relative z-10 flex flex-col items-center mb-12 px-4 gap-6">
+              {/* Sync Status Badge */}
+              {user && syncStatus !== 'idle' && (
+                <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 border ${
+                  syncStatus === 'synced' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
+                  syncStatus === 'syncing' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 
+                  'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    syncStatus === 'synced' ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 
+                    syncStatus === 'syncing' ? 'bg-blue-500 animate-pulse' : 'bg-rose-500'
+                  }`} />
+                  {syncStatus}
+                </div>
               )}
-              {type === 'slideshow' && <Play size={14} fill={activeTab === type ? 'currentColor' : 'none'} className={activeTab === type ? 'animate-pulse' : ''} />}
-              {type === 'albums' && <Grid size={14} fill={activeTab === type ? 'currentColor' : 'none'} />}
-              {type === 'art' && <Sparkles size={14} fill={activeTab === type ? 'currentColor' : 'none'} />}
-              {l[type as keyof typeof l] as string}
-            </button>
-          ))}
-        </div>
 
-        {/* Local Backup Controls */}
-        {auth.currentUser && (
-          <div className="flex gap-3">
-            <button 
-              onClick={exportBackup}
-              className="p-3 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-2xl transition-all border border-white/10 flex items-center gap-2"
-              title={lang === 'bn' ? 'ব্যাকআপ ডাউনলোড করুন' : 'Export Gallery Backup'}
-            >
-              <Download size={18} />
-              <span className="text-[10px] font-black uppercase tracking-widest">{lang === 'bn' ? 'ব্যাকআপ' : 'Backup'}</span>
-            </button>
-            <label className="p-3 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-2xl transition-all border border-white/10 flex items-center gap-2 cursor-pointer">
-              <UploadIcon size={18} />
-              <span className="text-[10px] font-black uppercase tracking-widest">{lang === 'bn' ? 'রিস্টোর' : 'Restore'}</span>
-              <input type="file" accept=".json" onChange={importBackup} className="hidden" />
-            </label>
-          </div>
-        )}
-      </div>
+              <div className="relative bg-[#1c1c1e]/60 backdrop-blur-3xl p-1 rounded-[24px] flex border border-white/5 shadow-[0_15px_40px_rgba(0,0,0,0.5)]">
+                {['slideshow', 'albums', 'art'].map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => {
+                      setActiveTab(type as any);
+                      if (type !== 'albums') setSelectedAlbum(null);
+                    }}
+                    className={`relative z-10 flex items-center justify-center gap-2 px-6 py-3 rounded-[20px] transition-all duration-500 font-bold text-[11px] tracking-tight whitespace-nowrap ${
+                      activeTab === type ? 'text-white' : 'text-white/40 hover:text-white/60'
+                    }`}
+                  >
+                    {activeTab === type && (
+                      <motion.div
+                        layoutId="active-pill"
+                        className="absolute inset-0 bg-white/10 rounded-[20px] border border-white/10 shadow-lg z-[-1]"
+                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                      />
+                    )}
+                    {type === 'slideshow' && <Play size={14} fill={activeTab === type ? 'currentColor' : 'none'} className={activeTab === type ? 'animate-pulse' : ''} />}
+                    {type === 'albums' && <Grid size={14} fill={activeTab === type ? 'currentColor' : 'none'} />}
+                    {type === 'art' && <Sparkles size={14} fill={activeTab === type ? 'currentColor' : 'none'} />}
+                    {l[type as keyof typeof l] as string}
+                  </button>
+                ))}
+              </div>
+
+              {/* Local Backup Controls */}
+              {auth.currentUser && activeTab === 'albums' && (
+                <div className="flex gap-3">
+                  <button 
+                    onClick={exportBackup}
+                    className="p-3 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-2xl transition-all border border-white/10 flex items-center gap-2"
+                    title={lang === 'bn' ? 'ব্যাকআপ ডাউনলোড করুন' : 'Export Gallery Backup'}
+                  >
+                    <Download size={18} />
+                    <span className="text-[10px] font-black uppercase tracking-widest">{lang === 'bn' ? 'ব্যাকআপ' : 'Backup'}</span>
+                  </button>
+                  <label className="p-3 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-2xl transition-all border border-white/10 flex items-center gap-2 cursor-pointer">
+                    <UploadIcon size={18} />
+                    <span className="text-[10px] font-black uppercase tracking-widest">{lang === 'bn' ? 'রিস্টোর' : 'Restore'}</span>
+                    <input type="file" accept=".json" onChange={importBackup} className="hidden" />
+                  </label>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       <AnimatePresence mode="wait">
-        {activeTab === 'slideshow' ? (
+        {selectedAlbum ? (
+          <motion.div
+            key={`album-${selectedAlbum.id}`}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            className="space-y-8"
+          >
+            {/* Horizontal Album Switcher / Breadcrumbs */}
+            <div className="flex gap-4 overflow-x-auto pb-4 mb-2 no-scrollbar scroll-smooth">
+              {albums.map((album) => (
+                <button
+                  key={album.id}
+                  onClick={() => {
+                    setSelectedAlbum(album);
+                    setSelectedPhotoIndex(null);
+                  }}
+                  className={`shrink-0 flex items-center gap-4 px-6 py-4 rounded-[28px] border transition-all whitespace-nowrap group ${
+                    selectedAlbum.id === album.id 
+                    ? 'bg-white text-black border-white shadow-2xl scale-105' 
+                    : 'bg-white/5 border-white/10 text-white/40 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  <div className={`w-10 h-10 rounded-2xl overflow-hidden bg-black/20 shrink-0 border border-white/10 transition-all ${selectedAlbum.id === album.id ? 'scale-110 shadow-lg' : ''}`}>
+                    {album.photos.length > 0 ? (
+                      <img src={album.photos[0].url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-pink-500/20">
+                        <Camera size={14} className="text-pink-400" />
+                      </div>
+                    )}
+                  </div>
+                  <span className="font-black text-sm tracking-tight">{album.name}</span>
+                  {selectedAlbum.id === album.id && (
+                    <motion.div layoutId="active-dot" className="w-2 h-2 bg-pink-500 rounded-full" />
+                  )}
+                </button>
+              ))}
+              {auth.currentUser && (
+                <button
+                  onClick={() => setIsCreatingAlbum(true)}
+                  className="shrink-0 flex items-center gap-2 px-5 py-3 rounded-2xl border-2 border-dashed border-white/20 text-white/40 hover:text-white hover:border-white/40 transition-all whitespace-nowrap bg-white/5"
+                >
+                  <Plus size={16} />
+                  <span className="font-bold text-sm text-[#c5a059]">{l.addAlbum}</span>
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white/[0.02] p-10 rounded-[50px] border border-white/10 backdrop-blur-3xl shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)] relative overflow-hidden group">
+              <div className="flex items-center gap-8 relative z-10">
+                <button 
+                  onClick={() => setSelectedAlbum(null)}
+                  className="w-14 h-14 rounded-2xl bg-white text-black flex items-center justify-center hover:bg-[#c5a059] hover:text-black transition-all transform active:scale-90 border border-white/10 group/back shadow-xl"
+                  title={l.backBtn}
+                >
+                  <ChevronLeft size={28} className="group-hover/back:-translate-x-1 transition-transform" />
+                </button>
+                <div>
+                  <h3 className="text-4xl font-display italic font-bold text-white tracking-tight mb-1">{selectedAlbum.name}</h3>
+                  <div className="flex flex-col gap-1">
+                    <p className="luxury-text text-[#c5a059] text-[11px]">{selectedAlbum.photos.length} Memories Collected</p>
+                    {selectedAlbum.description && (
+                      <p className="text-white/40 text-sm font-light italic max-w-md">{selectedAlbum.description}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-4 relative z-10">
+                {auth.currentUser && (
+                  <div 
+                    onClick={() => setAutoAddToSlideshow(!autoAddToSlideshow)}
+                    className={`flex items-center gap-3 px-6 py-4 rounded-2xl border transition-all cursor-pointer ${
+                      autoAddToSlideshow 
+                      ? 'bg-pink-500/10 border-pink-500/30 text-pink-400 shadow-lg shadow-pink-500/10' 
+                      : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10'
+                    }`}
+                  >
+                    <Sparkles size={16} className={autoAddToSlideshow ? 'animate-pulse' : ''} />
+                    <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">
+                      {l.autoAddLabel as string}
+                    </span>
+                    <div className={`w-8 h-4 rounded-full relative transition-colors ${autoAddToSlideshow ? 'bg-pink-500' : 'bg-white/10'}`}>
+                      <motion.div 
+                        animate={{ x: autoAddToSlideshow ? 16 : 2 }}
+                        className="absolute top-0.5 left-0 w-3 h-3 bg-white rounded-full shadow-sm"
+                      />
+                    </div>
+                  </div>
+                )}
+                <div className="flex bg-white/5 p-1.5 rounded-2xl border border-white/5 backdrop-blur-3xl">
+                  <button 
+                    onClick={() => setViewMode('grid')}
+                    className={`flex items-center gap-2 px-5 py-3 rounded-xl transition-all duration-300 font-bold text-[11px] tracking-tight ${viewMode === 'grid' ? 'bg-[#c5a059] text-black shadow-lg shadow-[#c5a059]/20' : 'text-white/30 hover:text-white'}`}
+                  >
+                    <Grid size={16} />
+                  </button>
+                  <button 
+                    onClick={() => setViewMode('masonry')}
+                    className={`flex items-center gap-2 px-5 py-3 rounded-xl transition-all duration-300 font-bold text-[11px] tracking-tight ${viewMode === 'masonry' ? 'bg-[#c5a059] text-black shadow-lg shadow-[#c5a059]/20' : 'text-white/30 hover:text-white'}`}
+                  >
+                    <Layout size={16} />
+                  </button>
+                </div>
+
+                {auth.currentUser && (
+                  <button
+                    onClick={() => document.getElementById('photo-upload')?.click()}
+                    className="bg-white text-black px-8 py-4 rounded-2xl flex items-center justify-center gap-3 font-black tracking-tight text-[12px] shadow-2xl hover:bg-[#c5a059] hover:text-black transition-all transform active:scale-95 premium-btn"
+                  >
+                    <Upload size={18} />
+                    {l.uploadBtn}
+                  </button>
+                )}
+              </div>
+              <input id="photo-upload" type="file" multiple accept="image/*" className="hidden" onChange={handlePhotoUpload} />
+            </div>
+
+            <AnimatePresence>
+              {isUploading && uploadingFiles.length > 0 && (
+                <motion.div 
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="bg-white/5 backdrop-blur-3xl rounded-[32px] border border-white/10 overflow-hidden mb-8 shadow-2xl"
+                >
+                  <div className="p-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-pink-500/10 flex items-center justify-center border border-pink-500/20">
+                          <Loader2 size={16} className="text-pink-500 animate-spin" />
+                        </div>
+                        <h4 className="text-white font-bold text-sm tracking-tight">
+                          {lang === 'bn' ? 'স্মৃতি আপলোড হচ্ছে...' : 'Uploading Memories...'}
+                        </h4>
+                      </div>
+                      {uploadResult && (
+                        <motion.span 
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${
+                            uploadResult.type === 'success' 
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                            : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                          }`}
+                        >
+                          {uploadResult.message}
+                        </motion.span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {uploadingFiles.map((file, i) => (
+                        <div key={i} className="bg-black/20 p-3 rounded-2xl flex flex-col gap-2 border border-white/5 relative group overflow-hidden">
+                          <div className="flex items-center justify-between gap-3 relative z-10">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <ImageIcon size={12} className="text-white/20 shrink-0" />
+                              <span className="text-[10px] text-white/60 truncate font-medium">{file.name}</span>
+                            </div>
+                            {file.status === 'success' ? (
+                              <Check size={12} className="text-emerald-500 shrink-0" />
+                            ) : file.status === 'error' ? (
+                              <X size={12} className="text-rose-500 shrink-0" />
+                            ) : (
+                              <span className="text-[10px] font-bold text-pink-500">{Math.round(file.progress)}%</span>
+                            )}
+                          </div>
+                          <div className="h-1 bg-white/5 rounded-full overflow-hidden relative z-10">
+                            <motion.div 
+                              initial={{ width: 0 }}
+                              animate={{ width: `${file.progress}%` }}
+                              className={`h-full transition-colors duration-500 ${file.status === 'success' ? 'bg-emerald-500' : 'bg-pink-500'}`}
+                            />
+                          </div>
+                          {file.status === 'success' && (
+                            <motion.div 
+                              initial={{ x: '-100%' }}
+                              animate={{ x: '100%' }}
+                              transition={{ duration: 1.5, repeat: Infinity }}
+                              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skew-x-12 z-0"
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {selectedAlbum.photos.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-32 text-white border-2 border-dashed border-white/10 rounded-[40px] bg-white/5 space-y-6">
+                <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center border border-white/10 shadow-inner">
+                  <ImageIcon size={48} className="text-white/20" />
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold mb-2 tracking-tight">{l.emptyAlbum}</p>
+                  <p className="text-white/40 text-sm">{lang === 'bn' ? (auth.currentUser ? 'শুরু করতে আপনার প্রথম ছবি আপলোড করুন' : 'এই অ্যালবামটি এখন খালি আছে') : (auth.currentUser ? 'Upload your first photo to get started' : 'This album is currently empty')}</p>
+                </div>
+                {auth.currentUser && (
+                  <button
+                    onClick={() => document.getElementById('photo-upload')?.click()}
+                    className="bg-pink-500 hover:bg-pink-600 text-white px-12 py-5 rounded-[30px] flex items-center justify-center gap-4 font-black shadow-2xl shadow-pink-500/30 transition-all hover:scale-105 active:scale-95"
+                  >
+                    <Plus size={24} />
+                    {l.uploadBtn}
+                  </button>
+                )}
+              </div>
+            ) : (
+              viewMode === 'masonry' ? (
+                <Masonry
+                  breakpointCols={{
+                    default: 4,
+                    1100: 3,
+                    700: 2,
+                    500: 1
+                  }}
+                  className="flex -ml-4 w-auto"
+                  columnClassName="pl-4 bg-clip-padding"
+                >
+                  {selectedAlbum.photos.map((photo, i) => (
+                    <div key={i} className="mb-6">
+                      <PhotoItem 
+                        photo={photo} 
+                        index={i} 
+                        lang={lang}
+                        onSelect={() => {
+                          setSelectedPhotoIndex(i);
+                          setEditingCaption(photo.caption || '');
+                        }}
+                        onQuickEdit={(caption) => {
+                          setQuickEditingIndex(i);
+                          setQuickEditingCaption(caption);
+                        }}
+                        onDelete={(e) => deletePhoto(photo.id, e)}
+                        onAddToSlideshow={(e) => {
+                          e.stopPropagation();
+                          addToSlideshow(photo);
+                        }}
+                        isQuickEditing={quickEditingIndex === i}
+                        quickEditingCaption={quickEditingCaption}
+                        setQuickEditingCaption={setQuickEditingCaption}
+                        onSaveQuick={() => saveQuickCaption(i)}
+                        onCancelQuick={() => setQuickEditingIndex(null)}
+                      />
+                    </div>
+                  ))}
+                </Masonry>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                  {selectedAlbum.photos.map((photo, i) => (
+                    <div key={photo.id || i} className="aspect-square">
+                      <PhotoItem 
+                        photo={photo} 
+                        index={i} 
+                        lang={lang}
+                        onSelect={() => {
+                          setSelectedPhotoIndex(i);
+                          setEditingCaption(photo.caption || '');
+                        }}
+                        onQuickEdit={(caption) => {
+                          setQuickEditingIndex(i);
+                          setQuickEditingCaption(caption);
+                        }}
+                        onDelete={(e) => deletePhoto(photo.id, e)}
+                        onAddToSlideshow={(e) => {
+                          e.stopPropagation();
+                          addToSlideshow(photo);
+                        }}
+                        isQuickEditing={quickEditingIndex === i}
+                        quickEditingCaption={quickEditingCaption}
+                        setQuickEditingCaption={setQuickEditingCaption}
+                        onSaveQuick={() => saveQuickCaption(i)}
+                        onCancelQuick={() => setQuickEditingIndex(null)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
+          </motion.div>
+        ) : activeTab === 'slideshow' ? (
           <motion.div
             key="slideshow-tab"
             initial={{ opacity: 0, scale: 0.95 }}
@@ -993,283 +1345,76 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
           </motion.div>
         ) : (
           <motion.div
-            key="album-view"
+            key="album-grid"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
+            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
           >
-            {!selectedAlbum ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {auth.currentUser && (
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setIsCreatingAlbum(true)}
-                    className="aspect-square rounded-[38px] border border-white/10 flex flex-col items-center justify-center gap-4 text-white/30 hover:text-white/60 hover:bg-white/[0.03] transition-all bg-[#1c1c1e] shadow-xl"
-                  >
-                    <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center border border-white/5 shadow-inner">
-                      <FolderPlus size={32} />
-                    </div>
-                    <span className="font-bold tracking-tight text-sm">{l.addAlbum}</span>
-                  </motion.button>
-                )}
-
-                {albums.map((album, index) => (
-                  <motion.div
-                    key={album.id}
-                    initial={{ opacity: 0, scale: 0.9, y: 30 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    whileHover={{ 
-                      y: -10,
-                    }}
-                    onClick={() => setSelectedAlbum(album)}
-                    className="aspect-square rounded-[38px] bg-[#1c1c1e] border border-white/5 relative overflow-hidden group cursor-pointer shadow-[0_20px_50px_rgba(0,0,0,0.6)] transition-all duration-500 active:scale-[0.98]"
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-br from-pink-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 z-10" />
-                    
-                    {album.photos.length > 0 ? (
-                      <img src={album.photos[0].url} alt="" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-110" />
-                    ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center bg-white/[0.02] group-hover:bg-white/[0.04] transition-all">
-                        <div className="w-16 h-16 rounded-[24px] bg-white/5 flex items-center justify-center mb-3 border border-white/5 group-hover:border-pink-500/20 group-hover:scale-110 transition-all duration-500 shadow-inner">
-                          <Camera size={28} className="text-white/10 group-hover:text-pink-500/50 transition-all duration-500" />
-                        </div>
-                        <span className="text-[10px] font-bold tracking-tight text-white/20 group-hover:text-white/40 transition-all duration-500">
-                          {l.emptyAlbum}
-                        </span>
-                      </div>
-                    )}
-
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-7 z-20 translate-y-2 group-hover:translate-y-0 transition-all duration-500">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <h4 className="text-xl font-bold text-white truncate tracking-tight mb-0.5">{album.name}</h4>
-                          <div className="flex flex-col gap-1">
-                            <p className="text-[10px] text-white/40 font-medium tracking-wide">{album.photos.length} Photos</p>
-                            {album.description && (
-                              <p className="text-[9px] text-white/30 truncate max-w-[120px]">{album.description}</p>
-                            )}
-                          </div>
-                        </div>
-                        {auth.currentUser && (
-                          <button 
-                            onClick={(e) => deleteAlbum(album.id, e)}
-                            className="w-9 h-9 rounded-full bg-white/5 backdrop-blur-xl text-white/20 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all border border-white/5"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            ) : (
-              <div className="space-y-8">
-                {/* Horizontal Album Switcher */}
-                <div className="flex gap-4 overflow-x-auto pb-4 mb-2 no-scrollbar scroll-smooth">
-                  {albums.map((album) => (
-                    <button
-                      key={album.id}
-                      onClick={() => {
-                        setSelectedAlbum(album);
-                        setSelectedPhotoIndex(null);
-                      }}
-                      className={`shrink-0 flex items-center gap-4 px-6 py-4 rounded-[28px] border transition-all whitespace-nowrap group ${
-                        selectedAlbum.id === album.id 
-                        ? 'bg-white text-black border-white shadow-2xl scale-105' 
-                        : 'bg-white/5 border-white/10 text-white/40 hover:text-white hover:bg-white/10'
-                      }`}
-                    >
-                      <div className={`w-10 h-10 rounded-2xl overflow-hidden bg-black/20 shrink-0 border border-white/10 transition-all ${selectedAlbum.id === album.id ? 'scale-110 shadow-lg' : ''}`}>
-                        {album.photos.length > 0 ? (
-                          <img src={album.photos[0].url} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-pink-500/20">
-                            <Camera size={14} className="text-pink-400" />
-                          </div>
-                        )}
-                      </div>
-                      <span className="font-black text-sm tracking-tight">{album.name}</span>
-                      {selectedAlbum.id === album.id && (
-                        <motion.div layoutId="active-dot" className="w-2 h-2 bg-pink-500 rounded-full" />
-                      )}
-                    </button>
-                  ))}
-                  {auth.currentUser && (
-                    <button
-                      onClick={() => setIsCreatingAlbum(true)}
-                      className="shrink-0 flex items-center gap-2 px-5 py-3 rounded-2xl border-2 border-dashed border-white/20 text-white/40 hover:text-white hover:border-white/40 transition-all whitespace-nowrap bg-white/5"
-                    >
-                      <Plus size={16} />
-                      <span className="font-bold text-sm">{l.addAlbum}</span>
-                    </button>
-                  )}
+            {auth.currentUser && (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setIsCreatingAlbum(true)}
+                className="aspect-square rounded-[38px] border border-white/10 flex flex-col items-center justify-center gap-4 text-white/30 hover:text-white/60 hover:bg-white/[0.03] transition-all bg-[#1c1c1e] shadow-xl"
+              >
+                <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center border border-white/5 shadow-inner">
+                  <FolderPlus size={32} />
                 </div>
-
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white/[0.02] p-10 rounded-[50px] border border-white/10 backdrop-blur-3xl shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)] relative overflow-hidden group">
-                  <div className="flex items-center gap-8 relative z-10">
-                    <button 
-                      onClick={() => setSelectedAlbum(null)}
-                      className="w-14 h-14 rounded-2xl bg-white text-black flex items-center justify-center hover:bg-[#c5a059] hover:text-black transition-all transform active:scale-90 border border-white/10 group/back shadow-xl"
-                    >
-                      <ChevronLeft size={28} className="group-hover/back:-translate-x-1 transition-transform" />
-                    </button>
-                    <div>
-                      <h3 className="text-4xl font-display italic font-bold text-white tracking-tight mb-1">{selectedAlbum.name}</h3>
-                      <div className="flex flex-col gap-1">
-                        <p className="luxury-text text-[#c5a059] text-[11px]">{selectedAlbum.photos.length} Memories Collected</p>
-                        {selectedAlbum.description && (
-                          <p className="text-white/40 text-sm font-light italic max-w-md">{selectedAlbum.description}</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-4 relative z-10">
-                    {auth.currentUser && (
-                      <div 
-                        onClick={() => setAutoAddToSlideshow(!autoAddToSlideshow)}
-                        className={`flex items-center gap-3 px-6 py-4 rounded-2xl border transition-all cursor-pointer ${
-                          autoAddToSlideshow 
-                          ? 'bg-pink-500/10 border-pink-500/30 text-pink-400 shadow-lg shadow-pink-500/10' 
-                          : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10'
-                        }`}
-                      >
-                        <Sparkles size={16} className={autoAddToSlideshow ? 'animate-pulse' : ''} />
-                        <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">
-                          {l.autoAddLabel as string}
-                        </span>
-                        <div className={`w-8 h-4 rounded-full relative transition-colors ${autoAddToSlideshow ? 'bg-pink-500' : 'bg-white/10'}`}>
-                          <motion.div 
-                            animate={{ x: autoAddToSlideshow ? 16 : 2 }}
-                            className="absolute top-0.5 left-0 w-3 h-3 bg-white rounded-full shadow-sm"
-                          />
-                        </div>
-                      </div>
-                    )}
-                    <div className="flex bg-white/5 p-1.5 rounded-2xl border border-white/5 backdrop-blur-3xl">
-                      <button 
-                        onClick={() => setViewMode('grid')}
-                        className={`flex items-center gap-2 px-5 py-3 rounded-xl transition-all duration-300 font-bold text-[11px] tracking-tight ${viewMode === 'grid' ? 'bg-[#c5a059] text-black shadow-lg shadow-[#c5a059]/20' : 'text-white/30 hover:text-white'}`}
-                      >
-                        <Grid size={16} />
-                      </button>
-                      <button 
-                        onClick={() => setViewMode('masonry')}
-                        className={`flex items-center gap-2 px-5 py-3 rounded-xl transition-all duration-300 font-bold text-[11px] tracking-tight ${viewMode === 'masonry' ? 'bg-[#c5a059] text-black shadow-lg shadow-[#c5a059]/20' : 'text-white/30 hover:text-white'}`}
-                      >
-                        <Layout size={16} />
-                      </button>
-                    </div>
-
-                    {auth.currentUser && (
-                      <button
-                        onClick={() => document.getElementById('photo-upload')?.click()}
-                        className="bg-white text-black px-8 py-4 rounded-2xl flex items-center justify-center gap-3 font-black tracking-tight text-[12px] shadow-2xl hover:bg-[#c5a059] hover:text-black transition-all transform active:scale-95 premium-btn"
-                      >
-                        <Upload size={18} />
-                        {l.uploadBtn}
-                      </button>
-                    )}
-                  </div>
-                  <input id="photo-upload" type="file" multiple accept="image/*" className="hidden" onChange={handlePhotoUpload} />
-                </div>
-
-                {selectedAlbum.photos.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-32 text-white border-2 border-dashed border-white/10 rounded-[40px] bg-white/5 space-y-6">
-                    <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center border border-white/10 shadow-inner">
-                      <ImageIcon size={48} className="text-white/20" />
-                    </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold mb-2 tracking-tight">{l.emptyAlbum}</p>
-                      <p className="text-white/40 text-sm">{lang === 'bn' ? (auth.currentUser ? 'শুরু করতে আপনার প্রথম ছবি আপলোড করুন' : 'এই অ্যালবামটি এখন খালি আছে') : (auth.currentUser ? 'Upload your first photo to get started' : 'This album is currently empty')}</p>
-                    </div>
-                    {auth.currentUser && (
-                      <button
-                        onClick={() => document.getElementById('photo-upload')?.click()}
-                        className="bg-pink-500 hover:bg-pink-600 text-white px-12 py-5 rounded-[30px] flex items-center justify-center gap-4 font-black shadow-2xl shadow-pink-500/30 transition-all hover:scale-105 active:scale-95"
-                      >
-                        <Plus size={24} />
-                        {l.uploadBtn}
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  viewMode === 'masonry' ? (
-                    <Masonry
-                      breakpointCols={{
-                        default: 4,
-                        1100: 3,
-                        700: 2,
-                        500: 1
-                      }}
-                      className="flex -ml-4 w-auto"
-                      columnClassName="pl-4 bg-clip-padding"
-                    >
-                      {selectedAlbum.photos.map((photo, i) => (
-                        <div key={i} className="mb-6">
-                          <PhotoItem 
-                            photo={photo} 
-                            index={i} 
-                            lang={lang}
-                            onSelect={() => {
-                              setSelectedPhotoIndex(i);
-                              setEditingCaption(photo.caption || '');
-                            }}
-                            onQuickEdit={(caption) => {
-                              setQuickEditingIndex(i);
-                              setQuickEditingCaption(caption);
-                            }}
-                            onDelete={(e) => deletePhoto(photo.id, e)}
-                            onAddToSlideshow={(e) => {
-                              e.stopPropagation();
-                              addToSlideshow(photo);
-                            }}
-                            isQuickEditing={quickEditingIndex === i}
-                            quickEditingCaption={quickEditingCaption}
-                            setQuickEditingCaption={setQuickEditingCaption}
-                            onSaveQuick={() => saveQuickCaption(i)}
-                            onCancelQuick={() => setQuickEditingIndex(null)}
-                          />
-                        </div>
-                      ))}
-                    </Masonry>
-                  ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                      {selectedAlbum.photos.map((photo, i) => (
-                        <div key={photo.id || i} className="aspect-square">
-                          <PhotoItem 
-                            photo={photo} 
-                            index={i} 
-                            lang={lang}
-                            onSelect={() => {
-                              setSelectedPhotoIndex(i);
-                              setEditingCaption(photo.caption || '');
-                            }}
-                            onQuickEdit={(caption) => {
-                              setQuickEditingIndex(i);
-                              setQuickEditingCaption(caption);
-                            }}
-                            onDelete={(e) => deletePhoto(photo.id, e)}
-                            onAddToSlideshow={(e) => {
-                              e.stopPropagation();
-                              addToSlideshow(photo);
-                            }}
-                            isQuickEditing={quickEditingIndex === i}
-                            quickEditingCaption={quickEditingCaption}
-                            setQuickEditingCaption={setQuickEditingCaption}
-                            onSaveQuick={() => saveQuickCaption(i)}
-                            onCancelQuick={() => setQuickEditingIndex(null)}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )
-                )}
-              </div>
+                <span className="font-bold tracking-tight text-sm">{l.addAlbum}</span>
+              </motion.button>
             )}
+
+            {albums.map((album, index) => (
+              <motion.div
+                key={album.id}
+                initial={{ opacity: 0, scale: 0.9, y: 30 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                whileHover={{ 
+                  y: -10,
+                }}
+                onClick={() => setSelectedAlbum(album)}
+                className="aspect-square rounded-[38px] bg-[#1c1c1e] border border-white/5 relative overflow-hidden group cursor-pointer shadow-[0_20px_50px_rgba(0,0,0,0.6)] transition-all duration-500 active:scale-[0.98]"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-pink-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 z-10" />
+                
+                {album.photos.length > 0 ? (
+                  <img src={album.photos[0].url} alt="" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-110" />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-white/[0.02] group-hover:bg-white/[0.04] transition-all">
+                    <div className="w-16 h-16 rounded-[24px] bg-white/5 flex items-center justify-center mb-3 border border-white/5 group-hover:border-pink-500/20 group-hover:scale-110 transition-all duration-500 shadow-inner">
+                      <Camera size={28} className="text-white/10 group-hover:text-pink-500/50 transition-all duration-500" />
+                    </div>
+                    <span className="text-[10px] font-bold tracking-tight text-white/20 group-hover:text-white/40 transition-all duration-500">
+                      {l.emptyAlbum}
+                    </span>
+                  </div>
+                )}
+
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-7 z-20 translate-y-2 group-hover:translate-y-0 transition-all duration-500">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-xl font-bold text-white truncate tracking-tight mb-0.5">{album.name}</h4>
+                      <div className="flex flex-col gap-1">
+                        <p className="text-[10px] text-white/40 font-medium tracking-wide">{album.photos.length} Photos</p>
+                        {album.description && (
+                          <p className="text-[9px] text-white/30 truncate max-w-[120px]">{album.description}</p>
+                        )}
+                      </div>
+                    </div>
+                    {auth.currentUser && (
+                      <button 
+                        onClick={(e) => deleteAlbum(album.id, e)}
+                        className="w-9 h-9 rounded-full bg-white/5 backdrop-blur-xl text-white/20 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all border border-white/5"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            ))}
           </motion.div>
         )}
       </AnimatePresence>

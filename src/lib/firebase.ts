@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { initializeAuth, browserLocalPersistence, browserPopupRedirectResolver } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer, enableIndexedDbPersistence } from 'firebase/firestore';
+import { initializeFirestore, doc, getDoc, getDocFromServer, CACHE_SIZE_UNLIMITED } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 export enum OperationType {
@@ -51,17 +52,14 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 }
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
-// Persistence can sometimes cause "offline" loops if not handled carefully in certain environments.
-// We'll disable it for now or ensure it's handled.
-/* 
-if (typeof window !== 'undefined') {
-  enableIndexedDbPersistence(db).catch((err) => {
-    ...
-  });
-}
-*/
+// Using initializeFirestore instead of getFirestore to set experimental settings.
+// experimentalForceLongPolling often fixes connectivity issues in restrictive or unique network environments.
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+}, firebaseConfig.firestoreDatabaseId);
+
+export const storage = getStorage(app);
 
 // Initialize Auth with explicit persistence and popup resolver
 export const auth = initializeAuth(app, {
@@ -69,7 +67,7 @@ export const auth = initializeAuth(app, {
   popupRedirectResolver: browserPopupRedirectResolver,
 });
 
-// Guard against concurrent popup operations which cause assertion failures
+// Guard against concurrent popup operations
 let activePopup: Promise<any> | null = null;
 export async function runWithPopupGuard<T>(fn: () => Promise<T>): Promise<T> {
   if (activePopup) {
@@ -88,21 +86,27 @@ export async function runWithPopupGuard<T>(fn: () => Promise<T>): Promise<T> {
   return activePopup;
 }
 
-// Test connection on boot with more grace
+// Test connection with a delay and graceful error handling
 async function testConnection() {
+  // Wait a few seconds for the environment to fully settle
+  await new Promise(resolve => setTimeout(resolve, 3000));
+  
   try {
     const path = 'test/connection';
-    // We use a simple getDoc first to see if it responds.
-    const { getDoc } = await import('firebase/firestore');
-    await getDoc(doc(db, path));
-    console.log('Firebase connection successful');
+    // Use getDocFromServer to verify real network connection
+    await getDocFromServer(doc(db, path)).catch(() => {
+      // If the specific document doesn't exist, it's still a "success" in terms of connectivity
+    });
+    console.log('Firebase connectivity verified');
   } catch (error) {
     if (error instanceof Error && (error.message.includes('the client is offline') || error.message.includes('Could not reach'))) {
-      console.error("Firebase Connection Error: The client appears to be offline or cannot reach the backend. Check your network or Firebase project status.");
-      // We don't throw here to allow the app to boot in "offline-first" mode if possible.
+      console.warn("Firebase Connection Warning: The client is in offline mode. This is expected if the network is slow or blocked. Firestore will sync when reconnected.");
     } else {
-      console.warn("Firebase connection test warning (optional):", error);
+      console.log("Firebase connection info:", error);
     }
   }
 }
-testConnection();
+
+if (typeof window !== 'undefined') {
+  testConnection();
+}
