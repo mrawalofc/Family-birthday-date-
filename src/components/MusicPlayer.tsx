@@ -241,190 +241,168 @@ export const MusicPlayer: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
     <div className="fixed bottom-20 right-5 z-[150] flex flex-col items-end">
       <AnimatePresence>
         {isExpanded && (
-          <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            className="bg-black/80 backdrop-blur-2xl border border-white/20 p-5 rounded-[40px] mb-3 w-80 shadow-2xl overflow-hidden"
-          >
-            {!showPlaylist ? (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-pink-500 animate-pulse" />
-                    <p className="text-[10px] uppercase tracking-widest text-white/40 font-bold">{l.nowPlaying}</p>
-                  </div>
-                  <button 
-                    onClick={() => setShowPlaylist(true)}
-                    className="p-2 hover:bg-white/10 rounded-full text-white/60 transition-colors"
-                  >
-                    <ListMusic size={18} />
-                  </button>
-                </div>
-
-                <div className="flex flex-col items-center gap-4 py-4">
-                  <div className="w-32 h-32 bg-gradient-to-br from-pink-500/20 to-purple-500/20 rounded-[40px] flex items-center justify-center text-pink-400 border border-white/10 relative group">
-                    <Music size={48} className={isPlaying ? 'animate-pulse' : ''} />
-                    <div className={`absolute inset-0 bg-pink-500/10 rounded-[40px] blur-xl -z-10 transition-opacity ${isPlaying ? 'opacity-100' : 'opacity-0'}`} />
-                  </div>
-                  
-                  <div className="text-center w-full px-2">
-                    <h4 className="text-lg font-bold text-white truncate px-2">{currentSong?.title || l.empty}</h4>
-                    <p className="text-sm text-white/50 truncate mb-4">{currentSong?.artist || ''}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="relative group">
-                    <input 
-                      type="range" 
-                      min="0" 
-                      max={duration || 100} 
-                      value={currentTime}
-                      onChange={handleSeek}
-                      className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-pink-500 group-hover:h-2 transition-all"
-                    />
-                    <div className="flex justify-between text-[10px] text-white/30 font-mono mt-1 px-1">
-                      <span>{formatTime(currentTime)}</span>
-                      <span>{formatTime(duration)}</span>
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.9 }}
+              className="bg-white/[0.02] backdrop-blur-3xl border border-white/10 p-6 rounded-[50px] mb-4 w-85 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)] overflow-hidden"
+            >
+              {!showPlaylist ? (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-[#c5a059] shadow-[0_0_10px_#c5a059] animate-pulse" />
+                      <p className="luxury-text text-[10px] text-[#c5a059]">{l.nowPlaying}</p>
                     </div>
-                  </div>
-
-                  <div className="flex items-center justify-center gap-8 py-2">
-                    <button onClick={() => skipTrack('prev')} className="text-white/40 hover:text-white transition-all scale-125 hover:scale-150 active:scale-95">
-                      <Play size={20} className="rotate-180" fill="currentColor" />
-                    </button>
                     <button 
-                      onClick={togglePlay}
-                      className="w-16 h-16 bg-white text-black rounded-full flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-[0_0_20px_rgba(255,255,255,0.3)]"
+                      onClick={() => setShowPlaylist(true)}
+                      className="w-10 h-10 bg-white/5 hover:bg-white/10 rounded-xl text-white transition-all flex items-center justify-center border border-white/5"
                     >
-                      {isPlaying ? <Pause size={28} fill="black" /> : <Play size={28} fill="black" className="ml-1" />}
-                    </button>
-                    <button onClick={() => skipTrack('next')} className="text-white/40 hover:text-white transition-all scale-125 hover:scale-150 active:scale-95">
-                      <Play size={20} fill="currentColor" />
+                      <ListMusic size={18} />
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-3 bg-white/5 p-3 rounded-2xl">
-                    <button onClick={() => setIsMuted(!isMuted)} className="text-white/40 hover:text-white transition-colors">
-                      {isMuted || volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
-                    </button>
-                    <input 
-                      type="range" 
-                      min="0" 
-                      max="1" 
-                      step="0.01" 
-                      value={volume}
-                      onChange={(e) => setVolume(parseFloat(e.target.value))}
-                      className="flex-1 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-pink-500"
-                    />
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col h-[400px]">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                    <ListMusic size={16} />
-                    {l.playlist}
-                  </h4>
-                  <button 
-                    onClick={() => setShowPlaylist(false)}
-                    className="p-1 hover:bg-white/10 rounded-full text-white/40"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
-
-                <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                  {playlist.map((song, index) => (
-                    <div 
-                      key={song.id}
-                      onClick={() => {
-                        setCurrentSongIndex(index);
-                        setIsPlaying(true);
-                      }}
-                      className={`group flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-all ${
-                        currentSongIndex === index ? 'bg-pink-500 text-white' : 'hover:bg-white/5 text-white/80'
-                      }`}
-                    >
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                         currentSongIndex === index ? 'bg-white/20' : 'bg-black/20'
-                      }`}>
-                        {currentSongIndex === index && isPlaying ? (
-                          <div className="flex items-end gap-0.5 h-3">
-                            <motion.div animate={{ height: [4, 12, 4] }} transition={{ repeat: Infinity, duration: 0.5 }} className="w-0.5 bg-white" />
-                            <motion.div animate={{ height: [12, 4, 12] }} transition={{ repeat: Infinity, duration: 0.6 }} className="w-0.5 bg-white" />
-                            <motion.div animate={{ height: [6, 10, 6] }} transition={{ repeat: Infinity, duration: 0.55 }} className="w-0.5 bg-white" />
-                          </div>
-                        ) : (
-                          <Music size={14} />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold truncate">{song.title}</p>
-                        <p className={`text-[10px] truncate ${currentSongIndex === index ? 'text-white/60' : 'text-white/40'}`}>
-                          {song.artist}
-                        </p>
-                      </div>
-                      {song.isUserUploaded && (
-                        <div className="relative" onClick={(e) => e.stopPropagation()}>
-                          <AnimatePresence mode="wait">
-                            {confirmDeleteId === song.id ? (
-                              <motion.div 
-                                initial={{ scale: 0.8, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                exit={{ scale: 0.8, opacity: 0 }}
-                                className="flex items-center gap-1 bg-black/40 border border-white/10 rounded-xl p-1 shadow-xl whitespace-nowrap"
-                              >
-                                <button 
-                                  onClick={() => removeSong(song.id)}
-                                  className="px-2 py-1 text-[8px] font-black bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all active:scale-90"
-                                >
-                                  {l.yes}
-                                </button>
-                                <button 
-                                  onClick={() => setConfirmDeleteId(null)}
-                                  className="px-2 py-1 text-[8px] font-black bg-white/10 text-white rounded-lg hover:bg-white/20 transition-all active:scale-90"
-                                >
-                                  {l.no}
-                                </button>
-                              </motion.div>
-                            ) : (
-                              <motion.button 
-                                initial={{ scale: 0.8, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                exit={{ scale: 0.8, opacity: 0 }}
-                                onClick={() => setConfirmDeleteId(song.id)}
-                                className="opacity-0 group-hover:opacity-100 p-2 hover:bg-red-500/20 text-white/40 hover:text-red-400 rounded-lg transition-all"
-                              >
-                                <Trash2 size={14} />
-                              </motion.button>
-                            )}
-                          </AnimatePresence>
+                  <div className="flex flex-col items-center gap-6 py-4">
+                    <div className="relative group">
+                      <motion.div 
+                        animate={isPlaying ? { rotate: 360 } : {}}
+                        transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+                        className="w-40 h-40 bg-gradient-to-br from-neutral-800 to-black rounded-full flex items-center justify-center text-[#c5a059] border-8 border-white/5 relative shadow-2xl overflow-hidden"
+                      >
+                        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20" />
+                        <div className="absolute inset-0 border-[20px] border-black/40 rounded-full" />
+                        <div className="w-12 h-12 bg-[#c5a059] rounded-full flex items-center justify-center text-black z-10 border-4 border-black">
+                          <Music size={20} />
                         </div>
-                      )}
+                      </motion.div>
+                      <div className={`absolute -inset-4 bg-[#c5a059]/10 rounded-full blur-2xl -z-10 transition-opacity duration-1000 ${isPlaying ? 'opacity-100' : 'opacity-0'}`} />
                     </div>
-                  ))}
-                </div>
+                    
+                    <div className="text-center w-full px-2">
+                      <h4 className="font-display italic text-2xl font-bold text-white truncate px-2">{currentSong?.title || l.empty}</h4>
+                      <p className="luxury-text text-[11px] text-white/40 mt-1">{currentSong?.artist || ''}</p>
+                    </div>
+                  </div>
 
-                <button 
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploading}
-                  className="mt-4 flex items-center justify-center gap-2 py-3 bg-pink-500 hover:bg-pink-600 disabled:opacity-50 text-white rounded-2xl text-xs font-bold transition-all shadow-lg active:scale-95"
-                >
-                  {isUploading ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" />
-                      {l.uploading}
-                    </>
-                  ) : (
-                    <>
-                      <Plus size={16} />
-                      {l.upload}
-                    </>
-                  )}
-                </button>
+                  <div className="space-y-6">
+                    <div className="relative pt-2">
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max={duration || 100} 
+                        value={currentTime}
+                        onChange={handleSeek}
+                        className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer accent-[#c5a059]"
+                      />
+                      <div className="flex justify-between luxury-text text-[9px] text-white/30 mt-3 px-1">
+                        <span>{formatTime(currentTime)}</span>
+                        <span>{formatTime(duration)}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-center gap-10">
+                      <button onClick={() => skipTrack('prev')} className="text-white/40 hover:text-[#c5a059] transition-all transform active:scale-95">
+                        <Play size={24} className="rotate-180" fill="currentColor" />
+                      </button>
+                      <button 
+                        onClick={togglePlay}
+                        className="w-20 h-20 bg-white text-black rounded-full flex items-center justify-center hover:bg-[#c5a059] hover:scale-105 active:scale-95 transition-all shadow-[0_16px_32px_rgba(255,255,255,0.1)] border-4 border-black/5"
+                      >
+                        {isPlaying ? <Pause size={32} fill="black" /> : <Play size={32} fill="black" className="ml-1" />}
+                      </button>
+                      <button onClick={() => skipTrack('next')} className="text-white/40 hover:text-[#c5a059] transition-all transform active:scale-95">
+                        <Play size={24} fill="currentColor" />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-4 bg-white/5 p-4 rounded-2xl border border-white/5">
+                      <button onClick={() => setIsMuted(!isMuted)} className="text-white/40 hover:text-[#c5a059] transition-colors">
+                        {isMuted || volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
+                      </button>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="1" 
+                        step="0.01" 
+                        value={volume}
+                        onChange={(e) => setVolume(parseFloat(e.target.value))}
+                        className="flex-1 h-1 bg-white/10 rounded-full appearance-none cursor-pointer accent-[#c5a059]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col h-[450px]">
+                  <div className="flex items-center justify-between mb-6">
+                    <h4 className="luxury-text text-[10px] text-white flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-[#c5a059]/10 flex items-center justify-center text-[#c5a059]">
+                        <ListMusic size={14} />
+                      </div>
+                      {l.playlist}
+                    </h4>
+                    <button 
+                      onClick={() => setShowPlaylist(false)}
+                      className="w-10 h-10 hover:bg-white/5 rounded-xl text-white/40 flex items-center justify-center"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+                    {playlist.map((song, index) => (
+                      <div 
+                        key={song.id}
+                        onClick={() => {
+                          setCurrentSongIndex(index);
+                          setIsPlaying(true);
+                        }}
+                        className={`group flex items-center gap-4 p-4 rounded-2xl cursor-pointer transition-all border ${
+                          currentSongIndex === index 
+                            ? 'bg-[#c5a059] text-black border-[#c5a059] shadow-xl' 
+                            : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/10 text-white/80'
+                        }`}
+                      >
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+                           currentSongIndex === index ? 'bg-black/20' : 'bg-black/40'
+                        }`}>
+                          {currentSongIndex === index && isPlaying ? (
+                            <div className="flex items-end gap-1 h-3.5">
+                              <motion.div animate={{ height: [4, 14, 4] }} transition={{ repeat: Infinity, duration: 0.5 }} className={`w-0.5 ${currentSongIndex === index ? 'bg-black' : 'bg-[#c5a059]'}`} />
+                              <motion.div animate={{ height: [14, 4, 14] }} transition={{ repeat: Infinity, duration: 0.6 }} className={`w-0.5 ${currentSongIndex === index ? 'bg-black' : 'bg-[#c5a059]'}`} />
+                              <motion.div animate={{ height: [8, 12, 8] }} transition={{ repeat: Infinity, duration: 0.55 }} className={`w-0.5 ${currentSongIndex === index ? 'bg-black' : 'bg-[#c5a059]'}`} />
+                            </div>
+                          ) : (
+                            <Music size={16} className={currentSongIndex === index ? 'text-black' : 'text-[#c5a059]'} />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold truncate tracking-tight">{song.title}</p>
+                          <p className={`text-[10px] uppercase tracking-widest truncate mt-0.5 ${currentSongIndex === index ? 'text-black/60 font-black' : 'text-white/30'}`}>
+                            {song.artist}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="mt-6 flex items-center justify-center gap-3 py-5 bg-white text-black hover:bg-[#c5a059] disabled:opacity-50 rounded-[20px] text-[11px] font-black uppercase tracking-widest transition-all shadow-2xl active:scale-95 premium-btn"
+                  >
+                    {isUploading ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        {l.uploading}
+                      </>
+                    ) : (
+                      <>
+                        <Plus size={18} />
+                        {l.upload}
+                      </>
+                    )}
+                  </button>
+
                 <input 
                   type="file" 
                   ref={fileInputRef} 
@@ -441,16 +419,16 @@ export const MusicPlayer: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
 
       <button 
         onClick={() => setIsExpanded(!isExpanded)}
-        className={`w-14 h-14 rounded-full flex items-center justify-center transition-all shadow-2xl cursor-pointer group relative ${
-          isExpanded ? 'bg-white text-black rotate-180' : 'bg-pink-500 text-white'
+        className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)] cursor-pointer group relative border border-white/10 ${
+          isExpanded ? 'bg-white text-black rotate-180 mb-4' : 'bg-[#c5a059] text-black'
         }`}
       >
         {isExpanded ? (
-          <ChevronDown size={28} />
+          <ChevronDown size={32} />
         ) : (
           <>
-            <div className={`absolute inset-0 bg-pink-500 rounded-full animate-ping opacity-20 ${isPlaying ? 'scale-150' : 'hidden'}`} />
-            <Music size={24} className={isPlaying ? 'animate-pulse' : ''} />
+            <div className={`absolute inset-0 bg-[#c5a059] rounded-2xl animate-ping opacity-20 ${isPlaying ? 'scale-[1.8]' : 'hidden'}`} />
+            <Music size={28} className={isPlaying ? 'animate-pulse' : ''} />
           </>
         )}
       </button>

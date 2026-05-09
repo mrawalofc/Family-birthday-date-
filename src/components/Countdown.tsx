@@ -332,8 +332,10 @@ export const Countdown: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
 
   const removeEvent = (id: string) => {
     if (id === 'anniversary' || id === 'mom' || id === 'dad') return; // Protect main ones
-    sounds.play('error');
-    setEditFormData(editFormData.filter(e => e.id !== id));
+    if (window.confirm(lang === 'bn' ? 'আপনি কি নিশ্চিত যে আপনি এটি মুছে ফেলতে চান?' : 'Are you sure you want to delete this?')) {
+      sounds.play('error');
+      setEditFormData(editFormData.filter(e => e.id !== id));
+    }
   };
 
   const t = texts[lang];

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { RefreshCcw } from 'lucide-react';
+import { RefreshCcw, Sparkles } from 'lucide-react';
 import { sounds } from '../lib/sounds';
 
 interface Question {
@@ -112,12 +112,29 @@ export const Quiz: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto py-10 px-5">
-      <div className="text-center mb-10">
-        <h2 className="font-serif text-5xl text-white mb-4 drop-shadow-md">
-          {lang === 'bn' ? 'তুমি আমাকে কতটা চেনো?' : 'How Well Do You Know Me?'}
+    <div className="w-full max-w-4xl mx-auto py-24 px-6 relative">
+      <div className="text-center mb-16 space-y-6 relative z-10">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="inline-flex items-center gap-3 px-6 py-2 rounded-full glass-card luxury-text text-[#c5a059] mb-4 shadow-xl"
+        >
+          <Sparkles size={14} className="fill-[#c5a059]" />
+          {lang === 'bn' ? 'আমাদের সম্পর্কের পরীক্ষা' : 'Bond Assessment'}
+        </motion.div>
+        
+        <h2 className="font-display font-black text-7xl md:text-[100px] text-gradient italic leading-[0.8] tracking-tighter">
+          {lang === 'bn' ? 'তুমি আমাকে চেনো?' : 'Knowledge Test'}
         </h2>
-        <p className="text-white/70 italic text-lg">A fun quiz about us ❓💕</p>
+        
+        <motion.p 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="luxury-text pt-6 max-w-xl mx-auto leading-relaxed opacity-60"
+        >
+          {lang === 'bn' ? 'দেখি আমাদের ভালোবাসা কতটা গভীর' : 'Let\'s uncover the depths of our shared memories'}
+        </motion.p>
       </div>
 
       <div className="relative">
@@ -125,42 +142,42 @@ export const Quiz: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
           {!showResult ? (
             <motion.div
               key={step}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="bg-white/10 backdrop-blur-xl rounded-[30px] p-10 border border-white/15 shadow-2xl text-center"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.05 }}
+              className="bg-white/[0.02] backdrop-blur-3xl rounded-[60px] p-12 md:p-20 border border-white/10 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)] relative overflow-hidden group"
             >
-              <div className="text-7xl mb-6 animate-bounce">{currentQ.emoji}</div>
+              <div className="text-8xl mb-12 flex justify-center">{currentQ.emoji}</div>
               
-              <div className="flex justify-center gap-2 mb-8">
+              <div className="flex justify-center gap-3 mb-16">
                 {questions.map((_, i) => (
                   <div 
                     key={i} 
-                    className={`h-2.5 rounded-full transition-all duration-300 ${
-                      i === step ? 'w-8 bg-pink-500 shadow-[0_0_10px_rgba(236,72,153,0.5)]' : 
-                      i < step ? 'w-2.5 bg-green-500' : 'w-2.5 bg-white/20'
+                    className={`h-1.5 rounded-full transition-all duration-700 ${
+                      i === step ? 'w-16 bg-[#c5a059] shadow-[0_0_20px_#c5a059]' : 
+                      i < step ? 'w-4 bg-white/40' : 'w-4 bg-white/5'
                     }`} 
                   />
                 ))}
               </div>
 
-              <h3 className="text-xl md:text-2xl text-white mb-10 font-medium leading-relaxed">
+              <h3 className="font-display italic text-3xl md:text-5xl text-white mb-16 tracking-tight leading-tight">
                 {currentQ.question}
               </h3>
 
-              <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {currentQ.options.map((opt, i) => (
                   <button
                     key={i}
                     onClick={() => handleAnswer(i)}
-                    className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-lg font-sans transition-all duration-300 border-2 text-left group ${
+                    className={`w-full flex items-center justify-center gap-4 px-8 py-7 rounded-[32px] text-[13px] font-black uppercase tracking-widest transition-all duration-500 border group ${
                       answered === null 
-                        ? 'bg-white/5 border-white/10 hover:bg-pink-500/20 hover:border-pink-500/40 hover:translate-x-3' 
+                        ? 'bg-white/[0.02] border-white/10 hover:bg-white text-black' 
                         : i === currentQ.correct 
-                          ? 'bg-green-500/30 border-green-500/60 scale-105' 
+                          ? 'bg-[#c5a059] border-[#c5a059] text-black scale-105 shadow-[0_0_40px_rgba(197,160,89,0.3)]' 
                           : answered === i 
-                            ? 'bg-red-500/30 border-red-500/60' 
-                            : 'bg-white/5 border-white/10 opacity-50'
+                            ? 'bg-rose-500/20 border-rose-500/40 text-rose-500' 
+                            : 'bg-white/[0.01] border-white/5 opacity-30 text-white'
                     }`}
                   >
                     <span className="text-2xl group-hover:scale-125 transition-transform">{opt.emoji}</span>
@@ -173,26 +190,27 @@ export const Quiz: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-white/10 backdrop-blur-xl rounded-[30px] p-12 border border-white/15 shadow-2xl text-center"
+              className="bg-white/[0.02] backdrop-blur-3xl rounded-[60px] p-20 border border-white/10 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)] text-center relative overflow-hidden"
             >
-              <div className="text-8xl mb-6">{getResultText().emoji}</div>
-              <h3 className="font-serif text-4xl text-white mb-2">
-                {lang === 'bn' ? 'কুইজ সম্পন্ন!' : 'Quiz Complete!'}
+              <div className="text-[120px] mb-12 drop-shadow-2xl">{getResultText().emoji}</div>
+              <h3 className="font-display italic text-5xl text-white mb-4">
+                {lang === 'bn' ? 'কুইজ সম্পন্ন!' : 'Quest Complete!'}
               </h3>
-              <div className="text-6xl font-bold text-pink-500 mb-6 drop-shadow-[0_0_15px_rgba(236,72,153,0.5)]">
-                {score}/{questions.length}
+              <div className="text-[100px] font-black tracking-tighter text-gradient mb-8 leading-none">
+                {score}<span className="text-white/20 text-4xl">/{questions.length}</span>
               </div>
-              <div className="flex justify-center gap-1 text-2xl mb-8 animate-pulse text-pink-300">
-                <span>💖</span><span>💗</span><span>💖</span><span>💗</span><span>💖</span>
-              </div>
-              <p className="text-xl text-white/90 leading-relaxed mb-10 italic font-medium">
+              
+              <div className="w-24 h-px bg-[#c5a059]/30 mx-auto mb-12" />
+              
+              <p className="font-display italic text-2xl text-white/60 leading-relaxed mb-16 max-w-xl mx-auto">
                 {getResultText().text}
               </p>
+              
               <button
                 onClick={reset}
-                className="bg-gradient-to-r from-pink-500 to-rose-600 text-white px-12 py-3 rounded-full font-bold shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-2 mx-auto"
+                className="bg-white text-black px-16 py-7 rounded-2xl font-black uppercase tracking-[0.3em] text-xs shadow-2xl hover:bg-[#c5a059] transition-all flex items-center justify-center gap-4 mx-auto transform hover:scale-105 active:scale-95 premium-btn"
               >
-                <RefreshCcw size={20} /> {lang === 'bn' ? 'আবার খেলুন' : 'Play Again'}
+                <RefreshCcw size={20} className="animate-spin-slow" /> {lang === 'bn' ? 'আবার খেলুন' : 'Relive the Moment'}
               </button>
             </motion.div>
           )}

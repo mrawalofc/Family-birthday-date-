@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, Trash2, Image as ImageIcon, Loader2, X, AlertCircle, Save, Upload } from 'lucide-react';
+import { Plus, Trash2, Image as ImageIcon, Loader2, X, AlertCircle, Save, Upload, Cloud, CloudOff, RefreshCw } from 'lucide-react';
 import { sounds } from '../lib/sounds';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query, writeBatch, getDocs, orderBy } from 'firebase/firestore';
+import { ConfirmationDialog } from './ConfirmationDialog';
 
 interface SlideshowImage {
   id: string;
@@ -25,6 +26,7 @@ export const SlideshowManager: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
   const [error, setError] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
   const [isInitialSync, setIsInitialSync] = useState(true);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
 
   // Firestore Sync Logic
   useEffect(() => {
@@ -264,7 +266,13 @@ export const SlideshowManager: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
+    setDeleteConfirm({ isOpen: true, id });
+  };
+
+  const confirmDeleteAction = async () => {
+    if (!deleteConfirm.id) return;
+    const { id } = deleteConfirm;
     const updated = images.filter(img => img.id !== id);
     saveToLocal(updated);
     removeFromFirestore(id);
@@ -280,9 +288,19 @@ export const SlideshowManager: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
               <ImageIcon size={18} className="text-pink-500 animate-[pulse_3s_infinite]" />
             </div>
             <div>
-              <h3 className="text-lg font-black text-white tracking-widest uppercase mb-0">
-                {l.title}
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-black text-white tracking-widest uppercase mb-0">
+                  {l.title}
+                </h3>
+                {syncStatus !== 'idle' && (
+                  <div className={`p-1 rounded-full ${
+                    syncStatus === 'synced' ? 'text-emerald-400' : 
+                    syncStatus === 'syncing' ? 'text-[#c5a059]' : 'text-rose-400'
+                  }`}>
+                    {syncStatus === 'synced' ? <Cloud size={10} /> : syncStatus === 'syncing' ? <RefreshCw size={10} className="animate-spin" /> : <CloudOff size={10} />}
+                  </div>
+                )}
+              </div>
               <p className="text-[7px] text-white/40 uppercase font-black tracking-[0.2em]">{l.description}</p>
             </div>
           </div>
@@ -472,6 +490,15 @@ export const SlideshowManager: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
             </div>
           </div>
         )}
+      <ConfirmationDialog
+        isOpen={deleteConfirm.isOpen}
+        onClose={() => setDeleteConfirm({ isOpen: false, id: null })}
+        onConfirm={confirmDeleteAction}
+        title={lang === 'bn' ? 'মুছে ফেলতে চান?' : 'Delete Photo?'}
+        message={lang === 'bn' ? 'আপনি কি নিশ্চিত যে আপনি এই চমৎকার স্মৃতিটি মুছে ফেলতে চান? এটি আর ফিরিয়ে আনা সম্ভব নয়।' : 'Are you sure you want to remove this beautiful memory? This action cannot be undone.'}
+        confirmText={lang === 'bn' ? 'হ্যাঁ, ডিলিট করুন' : 'Yes, Delete'}
+        cancelText={lang === 'bn' ? 'না' : 'Cancel'}
+      />
       </div>
   );
 };

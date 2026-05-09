@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, Image as ImageIcon, Trash2, FolderPlus, Camera, ChevronLeft, ChevronRight, Upload, Grid, Layout, Edit2, Check, X, Heart, Play, Sparkles, Star, Loader2 } from 'lucide-react';
+import { Plus, Image as ImageIcon, Trash2, FolderPlus, Camera, ChevronLeft, ChevronRight, Upload, Grid, Layout, Edit2, Check, X, Heart, Play, Sparkles, Star, Loader2, Download, Upload as UploadIcon } from 'lucide-react';
 import Masonry from 'react-masonry-css';
 import { sounds } from '../lib/sounds';
 import { SlideshowManager } from './SlideshowManager';
-import { collection, addDoc, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, getDocs, writeBatch, serverTimestamp, where } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, getDocs, writeBatch, serverTimestamp, where, setDoc } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
+import { ConfirmationDialog } from './ConfirmationDialog';
 
 interface AlbumPhoto {
   id: string;
@@ -21,6 +22,7 @@ interface UserAlbum {
   description: string;
   photos: AlbumPhoto[];
   createdAt: string;
+  userId?: string;
 }
 
 interface GalleryItem {
@@ -121,41 +123,41 @@ const PhotoItem: React.FC<{
             src={photo.url} 
             alt="" 
             onClick={onSelect}
-            className="w-full h-full object-cover filter brightness-[0.9] group-hover:brightness-100 transition-all duration-700"
-            whileHover={{ scale: 1.1 }}
-            transition={{ duration: 1, ease: "easeOut" }}
+            className="w-full h-full object-cover filter brightness-[0.8] group-hover:brightness-110 transition-all duration-700"
+            whileHover={{ scale: 1.15 }}
+            transition={{ duration: 1.5, ease: "easeOut" }}
           />
         </div>
-        <div className="absolute inset-x-0 bottom-0 p-4 pt-20 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-          <div className="bg-white/10 backdrop-blur-xl rounded-[20px] px-4 py-2.5 border border-white/10">
-            <p className="text-[10px] text-white font-bold tracking-tight truncate">
+        <div className="absolute inset-x-0 bottom-0 p-8 pt-32 bg-gradient-to-t from-black via-black/40 to-transparent pointer-events-none z-10 opacity-0 group-hover:opacity-100 transition-all duration-500 transform translate-y-4 group-hover:translate-y-0">
+          <div className="bg-white/5 backdrop-blur-2xl rounded-2xl px-6 py-4 border border-white/10 shadow-2xl">
+            <p className="font-serif italic text-white text-lg">
               {photo.caption || (lang === 'bn' ? 'স্মৃতি' : 'Beautiful Memory')}
             </p>
           </div>
         </div>
         
-        <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-20">
+        <div className="absolute top-6 right-6 flex flex-col gap-3 opacity-0 group-hover:opacity-100 transition-all duration-500 z-20 transform -translate-x-4 group-hover:translate-x-0">
           <button 
             onClick={onAddToSlideshow}
-            className="w-8 h-8 rounded-full bg-pink-500/90 backdrop-blur-xl text-white flex items-center justify-center hover:bg-pink-600 hover:scale-110 active:scale-95 transition-all border border-white/10 shadow-lg"
+            className="w-12 h-12 rounded-2xl bg-[#c5a059] text-black flex items-center justify-center hover:bg-white transition-all border border-white/10 shadow-2xl"
             title={lang === 'bn' ? 'স্লাইডশো' : 'Slideshow'}
           >
-            <Sparkles size={14} />
+            <Sparkles size={18} />
           </button>
           <button 
             onClick={(e) => {
               e.stopPropagation();
               onQuickEdit(photo.caption || '');
             }}
-            className="w-8 h-8 rounded-full bg-white/10 backdrop-blur-xl text-white flex items-center justify-center hover:bg-white/20 hover:scale-110 active:scale-95 transition-all border border-white/10 shadow-lg"
+            className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-3xl text-white flex items-center justify-center hover:bg-white/20 transition-all border border-white/10 shadow-2xl"
           >
-            <Edit2 size={14} />
+            <Edit2 size={18} />
           </button>
           <button 
             onClick={onDelete}
-            className="w-9 h-9 rounded-full bg-red-500/80 backdrop-blur-xl text-white flex items-center justify-center hover:bg-red-600 transition-all border border-white/10"
+            className="w-12 h-12 rounded-2xl bg-rose-500/80 backdrop-blur-3xl text-white flex items-center justify-center hover:bg-rose-600 transition-all border border-white/10 shadow-2xl"
           >
-            <Trash2 size={14} />
+            <Trash2 size={18} />
           </button>
         </div>
       </motion.div>
@@ -171,6 +173,7 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
   const [isCreatingAlbum, setIsCreatingAlbum] = useState(false);
   const [newAlbumName, setNewAlbumName] = useState('');
+  const [newAlbumDescription, setNewAlbumDescription] = useState('');
   const [editingCaption, setEditingCaption] = useState('');
   const [quickEditingIndex, setQuickEditingIndex] = useState<number | null>(null);
   const [quickEditingCaption, setQuickEditingCaption] = useState('');
@@ -179,19 +182,129 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
+  const [isInitialSync, setIsInitialSync] = useState(true);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; type: 'album' | 'photo' | 'import'; id: string | null; data?: any }>({ isOpen: false, type: 'album', id: null });
 
-  // Local Storage Sync
+  // Firestore Sync Logic
   useEffect(() => {
-    const savedAlbums = localStorage.getItem('love_world_gallery_albums');
-    if (savedAlbums) {
+    let unsubscribe: (() => void) | undefined;
+
+    const setupSync = async () => {
+      if (!user) return;
+      setSyncStatus('syncing');
+
+      const albumsRef = collection(db, 'users', user.uid, 'albums');
+      
+      // Initial check to see if we should push local to firestore
       try {
-        setAlbums(JSON.parse(savedAlbums));
-      } catch (e) {
-        console.error('Failed to parse albums:', e);
+        const snapshot = await getDocs(query(albumsRef, orderBy('createdAt', 'desc')));
+        const firestoreAlbums: UserAlbum[] = [];
+        
+        // We handle photos separately or nested? 
+        // In the blueprint they are subcollections but for simple sync we might nest them if small.
+        // Actually, let's stick to the blueprint: albums/{id} and photos/{id}
+        
+        for (const albumDoc of snapshot.docs) {
+          const albumData = albumDoc.data();
+          // Get photos subcollection for each album
+          const photosSnap = await getDocs(collection(db, albumDoc.ref.path, 'photos'));
+          const photos: AlbumPhoto[] = [];
+          photosSnap.forEach(pDoc => photos.push({ id: pDoc.id, ...pDoc.data() } as AlbumPhoto));
+          
+          firestoreAlbums.push({
+            id: albumDoc.id,
+            name: albumData.name,
+            description: albumData.description || '',
+            createdAt: albumData.createdAt,
+            userId: albumData.userId,
+            photos: photos.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          });
+        }
+
+        if (firestoreAlbums.length === 0 && albums.length > 0 && isInitialSync) {
+          // Push local to firestore
+          for (const localAlbum of albums) {
+            const albumDocRef = doc(albumsRef, localAlbum.id);
+            await setDoc(albumDocRef, {
+              name: localAlbum.name,
+              description: localAlbum.description,
+              createdAt: localAlbum.createdAt,
+              userId: user.uid
+            });
+            // Push photos
+            const batch = writeBatch(db);
+            localAlbum.photos.forEach(photo => {
+              const photoRef = doc(collection(db, albumDocRef.path, 'photos'), photo.id);
+              batch.set(photoRef, photo);
+            });
+            await batch.commit();
+          }
+        }
+
+        // Subscribe to albums
+        unsubscribe = onSnapshot(query(albumsRef, orderBy('createdAt', 'desc')), async (snap) => {
+          const updatedAlbums: UserAlbum[] = [];
+          for (const albumDoc of snap.docs) {
+            const albumData = albumDoc.data();
+            // In a real high-perf app, we'd only fetch photos when needed, 
+            // but for this small app we'll fetch them to maintain the existing UserAlbum structure
+            const photosSnap = await getDocs(collection(db, albumDoc.ref.path, 'photos'));
+            const photos: AlbumPhoto[] = [];
+            photosSnap.forEach(pDoc => photos.push({ id: pDoc.id, ...pDoc.data() } as AlbumPhoto));
+
+            updatedAlbums.push({
+              id: albumDoc.id,
+              name: albumData.name,
+              description: albumData.description || '',
+              createdAt: albumData.createdAt,
+              userId: albumData.userId,
+              photos: photos.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            });
+          }
+          
+          if (updatedAlbums.length > 0 || !isInitialSync) {
+            setAlbums(updatedAlbums);
+            localStorage.setItem('love_world_gallery_albums', JSON.stringify(updatedAlbums));
+            // Update selected album reference if it was open
+            if (selectedAlbum) {
+               const updatedSelected = updatedAlbums.find(a => a.id === selectedAlbum.id);
+               if (updatedSelected) setSelectedAlbum(updatedSelected);
+            }
+          }
+          setSyncStatus('synced');
+          setIsInitialSync(false);
+          setLoading(false);
+        }, (err) => {
+          handleFirestoreError(err, OperationType.LIST, albumsRef.path);
+          setSyncStatus('error');
+        });
+
+      } catch (err) {
+        console.error('Error setting up sync:', err);
+        setSyncStatus('error');
+        setLoading(false);
       }
+    };
+
+    setupSync();
+    return () => unsubscribe?.();
+  }, [user]);
+
+  // Local Storage Sync (Old behavior for offline/guest)
+  useEffect(() => {
+    if (!user) {
+      const savedAlbums = localStorage.getItem('love_world_gallery_albums');
+      if (savedAlbums) {
+        try {
+          setAlbums(JSON.parse(savedAlbums));
+        } catch (e) {
+          console.error('Failed to parse albums:', e);
+        }
+      }
+      setLoading(false);
     }
-    setLoading(false);
-  }, []);
+  }, [user]);
 
   const saveToLocal = (newAlbums: UserAlbum[]) => {
     setAlbums(newAlbums);
@@ -202,27 +315,157 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
 
   const createAlbum = async () => {
     if (!newAlbumName.trim()) return;
+    setSyncStatus('syncing');
     sounds.play('success');
+    
+    const albumId = crypto.randomUUID();
     const newAlbum: UserAlbum = {
-      id: crypto.randomUUID(),
+      id: albumId,
       name: newAlbumName.trim(),
-      description: '',
+      description: newAlbumDescription.trim(),
       photos: [],
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      userId: user?.uid || 'local-user'
     };
+
+    if (user) {
+      try {
+        const albumRef = doc(db, 'users', user.uid, 'albums', albumId);
+        await setDoc(albumRef, {
+          name: newAlbum.name,
+          description: newAlbum.description,
+          createdAt: newAlbum.createdAt,
+          userId: user.uid
+        });
+        setSyncStatus('synced');
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/albums/${albumId}`);
+        setSyncStatus('error');
+      }
+    }
+
     saveToLocal([newAlbum, ...albums]);
     setNewAlbumName('');
+    setNewAlbumDescription('');
     setIsCreatingAlbum(false);
   };
 
-  const deleteAlbum = async (id: string, e: React.MouseEvent) => {
+  const deleteAlbum = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm(lang === 'bn' ? "আপনি কি নিশ্চিত যে আপনি এই অ্যালবামটি মুছে ফেলতে চান?" : "Are you sure you want to delete this album?")) {
+    setDeleteConfirm({ isOpen: true, type: 'album', id });
+  };
+
+  const confirmDeleteAction = async () => {
+    if (deleteConfirm.type === 'import') {
+      const data = deleteConfirm.data;
+      if (data) {
+        setAlbums(data);
+        localStorage.setItem('love_world_gallery_albums', JSON.stringify(data));
+        // Simple overwrite of firestore if user exists
+        if (user) {
+          try {
+            const albumsRef = collection(db, 'users', user.uid, 'albums');
+            for (const localAlbum of data) {
+              const albumDocRef = doc(albumsRef, localAlbum.id);
+              await setDoc(albumDocRef, {
+                name: localAlbum.name,
+                description: localAlbum.description,
+                createdAt: localAlbum.createdAt,
+                userId: user.uid
+              });
+              const batch = writeBatch(db);
+              localAlbum.photos.forEach(photo => {
+                const photoRef = doc(collection(db, albumDocRef.path, 'photos'), photo.id);
+                batch.set(photoRef, photo);
+              });
+              await batch.commit();
+            }
+          } catch (e) {}
+        }
+        sounds.play('success');
+      }
+      setDeleteConfirm({ isOpen: false, type: 'album', id: null });
+      return;
+    }
+
+    if (!deleteConfirm.id) return;
+    const { type, id } = deleteConfirm;
+
+    if (type === 'album') {
       sounds.play('error');
+      if (user) {
+        try {
+          setSyncStatus('syncing');
+          await deleteDoc(doc(db, 'users', user.uid, 'albums', id));
+          setSyncStatus('synced');
+        } catch (err) {
+          handleFirestoreError(err, OperationType.DELETE, `users/${user.uid}/albums/${id}`);
+          setSyncStatus('error');
+        }
+      }
       const filtered = albums.filter(a => a.id !== id);
       saveToLocal(filtered);
       if (selectedAlbum?.id === id) setSelectedAlbum(null);
+    } else if (type === 'photo') {
+      if (!selectedAlbum) return;
+      if (user) {
+        try {
+          setSyncStatus('syncing');
+          await deleteDoc(doc(db, 'users', user.uid, 'albums', selectedAlbum.id, 'photos', id));
+          setSyncStatus('synced');
+        } catch (err) {
+          handleFirestoreError(err, OperationType.DELETE, `users/${user.uid}/albums/${selectedAlbum.id}/photos/${id}`);
+          setSyncStatus('error');
+        }
+      }
+      sounds.play('error');
+      const updatedAlbums = albums.map(a => {
+        if (a.id === selectedAlbum.id) {
+          return { ...a, photos: a.photos.filter(p => p.id !== id) };
+        }
+        return a;
+      });
+      saveToLocal(updatedAlbums);
+      const updatedSelected = updatedAlbums.find(a => a.id === selectedAlbum.id) || null;
+      setSelectedAlbum(updatedSelected);
     }
+  };
+
+  const deletePhoto = (photoId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeleteConfirm({ isOpen: true, type: 'photo', id: photoId });
+  };
+
+  const exportBackup = () => {
+    const data = JSON.stringify(albums, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `gallery_backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    sounds.play('success');
+  };
+
+  const importBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const data = JSON.parse(event.target?.result as string);
+        if (Array.isArray(data)) {
+          setDeleteConfirm({ isOpen: true, type: 'import', id: null, data });
+        }
+      } catch (err) {
+        alert(lang === 'bn' ? 'ভুল ফাইল ফরম্যাট!' : 'Invalid file format!');
+      }
+    };
+    reader.readAsText(file);
   };
 
   const compressImage = (base64Str: string): Promise<string> => {
@@ -283,13 +526,24 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
           });
 
           const compressed = await compressImage(base64);
-
-          newPhotos.push({
-            id: crypto.randomUUID(),
+          const photoId = crypto.randomUUID();
+          const photo: AlbumPhoto = {
+            id: photoId,
             url: compressed,
             caption: '',
             createdAt: new Date().toISOString()
-          });
+          };
+
+          if (user && selectedAlbum) {
+            try {
+              const photoRef = doc(db, 'users', user.uid, 'albums', selectedAlbum.id, 'photos', photoId);
+              await setDoc(photoRef, photo);
+            } catch (err) {
+              handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/albums/${selectedAlbum.id}/photos/${photoId}`);
+            }
+          }
+
+          newPhotos.push(photo);
 
           setUploadingFiles(prev => {
             const next = [...prev];
@@ -328,7 +582,7 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
     }
   };
 
-  const addToSlideshow = (photo: AlbumPhoto) => {
+  const addToSlideshow = async (photo: AlbumPhoto) => {
      const KEY = 'love_world_slideshow';
      const saved = localStorage.getItem(KEY);
      let images = [];
@@ -339,13 +593,27 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
      }
      if (!Array.isArray(images)) images = [];
      
+     const newId = crypto.randomUUID();
      const newImage = {
-       id: crypto.randomUUID(),
+       id: newId,
        url: photo.url,
-       caption: photo.caption || lang === 'bn' ? 'অ্যালবাম থেকে' : 'From Album',
-       userId: 'local-user',
+       caption: photo.caption || (lang === 'bn' ? 'অ্যালবাম থেকে' : 'From Album'),
+       userId: user?.uid || 'local-user',
        createdAt: new Date().toISOString()
      };
+     
+     // Sync with Firestore if authenticated
+     if (user) {
+       try {
+         setSyncStatus('syncing');
+         const docRef = doc(db, 'slideshow', newId);
+         await setDoc(docRef, newImage);
+         setSyncStatus('synced');
+       } catch (err) {
+         handleFirestoreError(err, OperationType.WRITE, `slideshow/${newId}`);
+         setSyncStatus('error');
+       }
+     }
      
      const updated = [newImage, ...images].slice(0, 10);
      localStorage.setItem(KEY, JSON.stringify(updated));
@@ -354,38 +622,24 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
      alert(lang === 'bn' ? 'স্লাইডশোতে যোগ করা হয়েছে!' : 'Added to slideshow!');
   };
 
-  const deletePhoto = async (photoId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!selectedAlbum) return;
-
-    if (!confirm(lang === 'bn' ? "আপনি কি নিশ্চিত যে আপনি এই ছবিটি মুছে ফেলতে চান?" : "Are you sure you want to delete this photo?")) {
-      return;
-    }
-
-    sounds.play('error');
-    
-    const updatedAlbums = albums.map(a => {
-      if (a.id === selectedAlbum.id) {
-        return { ...a, photos: a.photos.filter(p => p.id !== photoId) };
-      }
-      return a;
-    });
-
-    saveToLocal(updatedAlbums);
-    const updatedSelected = updatedAlbums.find(a => a.id === selectedAlbum.id) || null;
-    setSelectedAlbum(updatedSelected);
-    
-    if (selectedPhotoIndex !== null && updatedSelected) {
-      if (selectedPhotoIndex >= updatedSelected.photos.length) {
-        setSelectedPhotoIndex(null);
-      }
-    }
-  };
 
   const saveCaption = async () => {
     if (!selectedAlbum || selectedPhotoIndex === null) return;
     sounds.play('success');
     
+    const photo = selectedAlbum.photos[selectedPhotoIndex];
+    if (user) {
+      try {
+        setSyncStatus('syncing');
+        const photoRef = doc(db, 'users', user.uid, 'albums', selectedAlbum.id, 'photos', photo.id);
+        await updateDoc(photoRef, { caption: editingCaption });
+        setSyncStatus('synced');
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}/albums/${selectedAlbum.id}/photos/${photo.id}`);
+        setSyncStatus('error');
+      }
+    }
+
     const updatedAlbums = albums.map(a => {
       if (a.id === selectedAlbum.id) {
         const photos = [...a.photos];
@@ -403,6 +657,19 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
     if (!selectedAlbum) return;
     sounds.play('success');
     
+    const photo = selectedAlbum.photos[index];
+    if (user) {
+      try {
+        setSyncStatus('syncing');
+        const photoRef = doc(db, 'users', user.uid, 'albums', selectedAlbum.id, 'photos', photo.id);
+        await updateDoc(photoRef, { caption: quickEditingCaption });
+        setSyncStatus('synced');
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}/albums/${selectedAlbum.id}/photos/${photo.id}`);
+        setSyncStatus('error');
+      }
+    }
+
     const updatedAlbums = albums.map(a => {
       if (a.id === selectedAlbum.id) {
         const photos = [...a.photos];
@@ -524,6 +791,7 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
       slideshow: "স্লাইডশো",
       addAlbum: "নতুন অ্যালবাম",
       albumPlaceholder: "অ্যালবামের নাম...",
+      albumDescPlaceholder: "অ্যালবামের বর্ণনা (ঐচ্ছিক)...",
       noAlbums: "এখনো কোনো অ্যালবাম নেই।",
       createBtn: "তৈরি করুন",
       backBtn: "পিছনে",
@@ -538,6 +806,7 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
       slideshow: "Slideshow",
       addAlbum: "New Album",
       albumPlaceholder: "Album name...",
+      albumDescPlaceholder: "Album description (optional)...",
       noAlbums: "No albums yet.",
       createBtn: "Create",
       backBtn: "Back",
@@ -552,6 +821,31 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
 
   return (
     <div className="w-full max-w-7xl mx-auto py-12 px-6 relative">
+      {/* Premium Header */}
+      <div className="text-center mb-16 space-y-6 relative z-10">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="inline-flex items-center gap-3 px-6 py-2 rounded-full glass-card luxury-text text-[#c5a059] mb-4 shadow-xl"
+        >
+          <Camera size={14} className="fill-[#c5a059]" />
+          {lang === 'bn' ? 'গ্যালারি আমাদের ডায়েরি' : 'Our Visual Diary'}
+        </motion.div>
+        
+        <h2 className="font-display font-black text-7xl md:text-[110px] text-gradient italic leading-[0.8] tracking-tighter">
+          {lang === 'bn' ? 'স্মৃতির গ্যালারি' : 'The Gallery'}
+        </h2>
+        
+        <motion.p 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="luxury-text pt-6 max-w-xl mx-auto leading-relaxed opacity-60"
+        >
+          {lang === 'bn' ? 'আমাদের পরিবারের সোনালী মুহূর্তগুলো' : 'Golden Moments of Our Family'}
+        </motion.p>
+      </div>
+
       {/* Premium Background Ambiance */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-pink-500/10 blur-[120px] rounded-full animate-pulse" />
@@ -559,7 +853,22 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
       </div>
 
       {/* Tab Controls - Precise Segmented Control */}
-      <div className="relative z-10 flex justify-center mb-12 px-4">
+      <div className="relative z-10 flex flex-col items-center mb-12 px-4 gap-6">
+        {/* Sync Status Badge */}
+        {user && syncStatus !== 'idle' && (
+          <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 border ${
+            syncStatus === 'synced' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
+            syncStatus === 'syncing' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 
+            'bg-rose-500/10 text-rose-400 border-rose-500/20'
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${
+              syncStatus === 'synced' ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 
+              syncStatus === 'syncing' ? 'bg-blue-500 animate-pulse' : 'bg-rose-500'
+            }`} />
+            {syncStatus}
+          </div>
+        )}
+
         <div className="relative bg-[#1c1c1e]/60 backdrop-blur-3xl p-1 rounded-[24px] flex border border-white/5 shadow-[0_15px_40px_rgba(0,0,0,0.5)]">
           {['slideshow', 'albums', 'art'].map((type) => (
             <button
@@ -585,6 +894,23 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
               {l[type as keyof typeof l] as string}
             </button>
           ))}
+        </div>
+
+        {/* Local Backup Controls */}
+        <div className="flex gap-3">
+          <button 
+            onClick={exportBackup}
+            className="p-3 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-2xl transition-all border border-white/10 flex items-center gap-2"
+            title={lang === 'bn' ? 'ব্যাকআপ ডাউনলোড করুন' : 'Export Gallery Backup'}
+          >
+            <Download size={18} />
+            <span className="text-[10px] font-black uppercase tracking-widest">{lang === 'bn' ? 'ব্যাকআপ' : 'Backup'}</span>
+          </button>
+          <label className="p-3 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-2xl transition-all border border-white/10 flex items-center gap-2 cursor-pointer">
+            <UploadIcon size={18} />
+            <span className="text-[10px] font-black uppercase tracking-widest">{lang === 'bn' ? 'রিস্টোর' : 'Restore'}</span>
+            <input type="file" accept=".json" onChange={importBackup} className="hidden" />
+          </label>
         </div>
       </div>
 
@@ -698,8 +1024,11 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <h4 className="text-xl font-bold text-white truncate tracking-tight mb-0.5">{album.name}</h4>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-col gap-1">
                             <p className="text-[10px] text-white/40 font-medium tracking-wide">{album.photos.length} Photos</p>
+                            {album.description && (
+                              <p className="text-[9px] text-white/30 truncate max-w-[120px]">{album.description}</p>
+                            )}
                           </div>
                         </div>
                         <button 
@@ -754,43 +1083,46 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
                   </button>
                 </div>
 
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-[#1c1c1e]/60 p-8 rounded-[38px] border border-white/5 backdrop-blur-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative overflow-hidden group">
-                  <div className="flex items-center gap-6 relative z-10">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white/[0.02] p-10 rounded-[50px] border border-white/10 backdrop-blur-3xl shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)] relative overflow-hidden group">
+                  <div className="flex items-center gap-8 relative z-10">
                     <button 
                       onClick={() => setSelectedAlbum(null)}
-                      className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center hover:bg-pink-500 hover:text-white transition-all transform active:scale-90 border border-white/10 group/back"
+                      className="w-14 h-14 rounded-2xl bg-white text-black flex items-center justify-center hover:bg-[#c5a059] hover:text-black transition-all transform active:scale-90 border border-white/10 group/back shadow-xl"
                     >
-                      <ChevronLeft size={24} className="group-hover/back:-translate-x-1 transition-transform" />
+                      <ChevronLeft size={28} className="group-hover/back:-translate-x-1 transition-transform" />
                     </button>
                     <div>
-                      <h3 className="text-3xl font-bold text-white tracking-tight mb-0.5">{selectedAlbum.name}</h3>
-                      <div className="flex items-center gap-2">
-                        <p className="text-white/30 text-[11px] font-medium tracking-wide">{selectedAlbum.photos.length} Memories</p>
+                      <h3 className="text-4xl font-display italic font-bold text-white tracking-tight mb-1">{selectedAlbum.name}</h3>
+                      <div className="flex flex-col gap-1">
+                        <p className="luxury-text text-[#c5a059] text-[11px]">{selectedAlbum.photos.length} Memories Collected</p>
+                        {selectedAlbum.description && (
+                          <p className="text-white/40 text-sm font-light italic max-w-md">{selectedAlbum.description}</p>
+                        )}
                       </div>
                     </div>
                   </div>
                   
-                  <div className="flex items-center gap-3 relative z-10">
-                    <div className="flex bg-white/5 p-1 rounded-full border border-white/5 backdrop-blur-md">
+                  <div className="flex items-center gap-4 relative z-10">
+                    <div className="flex bg-white/5 p-1.5 rounded-2xl border border-white/5 backdrop-blur-3xl">
                       <button 
                         onClick={() => setViewMode('grid')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-300 font-bold text-[11px] tracking-tight ${viewMode === 'grid' ? 'bg-white text-black shadow-lg' : 'text-white/30 hover:text-white'}`}
+                        className={`flex items-center gap-2 px-5 py-3 rounded-xl transition-all duration-300 font-bold text-[11px] tracking-tight ${viewMode === 'grid' ? 'bg-[#c5a059] text-black shadow-lg shadow-[#c5a059]/20' : 'text-white/30 hover:text-white'}`}
                       >
-                        <Grid size={14} />
+                        <Grid size={16} />
                       </button>
                       <button 
                         onClick={() => setViewMode('masonry')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-300 font-bold text-[11px] tracking-tight ${viewMode === 'masonry' ? 'bg-white text-black shadow-lg' : 'text-white/30 hover:text-white'}`}
+                        className={`flex items-center gap-2 px-5 py-3 rounded-xl transition-all duration-300 font-bold text-[11px] tracking-tight ${viewMode === 'masonry' ? 'bg-[#c5a059] text-black shadow-lg shadow-[#c5a059]/20' : 'text-white/30 hover:text-white'}`}
                       >
-                        <Layout size={14} />
+                        <Layout size={16} />
                       </button>
                     </div>
 
                     <button
                       onClick={() => document.getElementById('photo-upload')?.click()}
-                      className="bg-white text-black px-6 py-3 rounded-full flex items-center justify-center gap-2 font-bold tracking-tight text-[12px] shadow-lg hover:bg-pink-500 hover:text-white transition-all transform active:scale-95"
+                      className="bg-white text-black px-8 py-4 rounded-2xl flex items-center justify-center gap-3 font-black tracking-tight text-[12px] shadow-2xl hover:bg-[#c5a059] hover:text-black transition-all transform active:scale-95 premium-btn"
                     >
-                      <Upload size={16} />
+                      <Upload size={18} />
                       {l.uploadBtn}
                     </button>
                   </div>
@@ -925,8 +1257,17 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
                     placeholder={l.albumPlaceholder}
                     value={newAlbumName}
                     onChange={(e) => setNewAlbumName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && createAlbum()}
                     className="w-full bg-white/[0.03] border border-white/10 rounded-[20px] px-6 py-4 text-sm text-white font-medium focus:bg-white/[0.06] focus:border-pink-500/30 outline-none transition-all placeholder:text-white/10"
+                  />
+                </div>
+                <div className="space-y-2.5">
+                  <label className="text-[10px] text-white/30 font-bold uppercase tracking-widest ml-1">About This Collection</label>
+                  <textarea
+                    placeholder={l.albumDescPlaceholder as string}
+                    value={newAlbumDescription}
+                    onChange={(e) => setNewAlbumDescription(e.target.value)}
+                    rows={3}
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-[20px] px-6 py-4 text-sm text-white font-medium focus:bg-white/[0.06] focus:border-pink-500/30 outline-none transition-all placeholder:text-white/10 resize-none"
                   />
                 </div>
               </div>
@@ -1094,6 +1435,26 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
         )}
       </AnimatePresence>
 
+      <ConfirmationDialog
+        isOpen={deleteConfirm.isOpen}
+        onClose={() => setDeleteConfirm({ isOpen: false, type: 'album', id: null })}
+        onConfirm={confirmDeleteAction}
+        title={
+          deleteConfirm.type === 'import' ? (lang === 'bn' ? 'ব্যাকআপ ইমপোর্ট?' : 'Import Backup?') :
+          deleteConfirm.type === 'album' ? (lang === 'bn' ? 'অ্যালবাম ডিলিট?' : 'Delete Album?') : 
+          (lang === 'bn' ? 'ছবি ডিলিট?' : 'Delete Photo?')
+        }
+        message={
+          deleteConfirm.type === 'import' ? (lang === 'bn' ? 'ব্যাকআপ ইমপোর্ট করলে বর্তমান অ্যালবামগুলো ওভাররাইট হয়ে যাবে। আপনি কি নিশ্চিত?' : 'Importing backup will overwrite current albums. Are you sure?') :
+          deleteConfirm.type === 'album' ? (lang === 'bn' ? 'আপনি কি নিশ্চিত যে আপনি এই অ্যালবামটি মুছে ফেলতে চান? এর ভেতরের সব ছবিও মুছে যাবে।' : 'Are you sure you want to delete this album? All photos inside will be removed.') :
+          (lang === 'bn' ? 'আপনি কি নিশ্চিত যে আপনি এই ছবিটি মুছে ফেলতে চান?' : 'Are you sure you want to delete this photo?')
+        }
+        confirmText={
+          deleteConfirm.type === 'import' ? (lang === 'bn' ? 'হ্যাঁ, ইমপোর্ট করুন' : 'Yes, Import') :
+          (lang === 'bn' ? 'হ্যাঁ, ডিলিট করুন' : 'Yes, Delete')
+        }
+        cancelText={lang === 'bn' ? 'না' : 'Cancel'}
+      />
     </div>
   );
 };

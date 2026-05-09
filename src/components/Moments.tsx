@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Calendar, Heart, Star, Camera, Coffee, MapPin, 
-  Sparkles, Plus, Trash2, Edit2, X, Save, Cloud, CloudOff, RefreshCw 
+  Sparkles, Plus, Trash2, Edit2, X, Save, Cloud, CloudOff, RefreshCw, Download, Upload as UploadIcon 
 } from 'lucide-react';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { sounds } from '../lib/sounds';
 import { collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch, getDocs, orderBy, query } from 'firebase/firestore';
+import { ConfirmationDialog } from './ConfirmationDialog';
 
 interface MomentData {
   id: string;
@@ -71,6 +72,7 @@ export const Moments: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<MomentData>>({});
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
   const [inlineEdit, setInlineEdit] = useState<{ id: string, field: string } | null>(null);
   const [editValue, setEditValue] = useState("");
 
@@ -191,13 +193,60 @@ export const Moments: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
 
   const handleDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm(lang === 'bn' ? 'আপনি কি এটি মুছে ফেলতে চান?' : 'Do you want to delete this?')) {
-      sounds.play('error');
-      const filtered = moments.filter(m => m.id !== id);
-      setMoments(filtered);
-      localStorage.setItem('love_world_moments', JSON.stringify(filtered));
-      removeFromFirestore(id);
-    }
+    setDeleteConfirm({ isOpen: true, id });
+  };
+
+  const confirmDeleteAction = () => {
+    if (!deleteConfirm.id) return;
+    const id = deleteConfirm.id;
+    sounds.play('error');
+    const filtered = moments.filter(m => m.id !== id);
+    setMoments(filtered);
+    localStorage.setItem('love_world_moments', JSON.stringify(filtered));
+    removeFromFirestore(id);
+  };
+
+  const exportBackup = () => {
+    const data = JSON.stringify(moments, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `moments_backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    sounds.play('success');
+  };
+
+  const importBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const data = JSON.parse(event.target?.result as string);
+        if (Array.isArray(data)) {
+          if (confirm(lang === 'bn' ? 'ব্যাকআপ ইমপোর্ট করলে বর্তমান মোমেন্টস ডিলিট হয়ে যাবে। আপনি কি নিশ্চিত?' : 'Importing backup will overwrite current moments. Are you sure?')) {
+            setMoments(data);
+            localStorage.setItem('love_world_moments', JSON.stringify(data));
+            if (auth.currentUser) {
+               const momentsRef = collection(db, 'users', auth.currentUser.uid, 'moments');
+               const batch = writeBatch(db);
+               data.forEach(m => batch.set(doc(momentsRef, m.id), m));
+               await batch.commit();
+            }
+            sounds.play('success');
+            alert(lang === 'bn' ? 'মোমেন্টস ব্যাকআপ সফলভাবে ইমপোর্ট করা হয়েছে!' : 'Moments backup imported successfully!');
+          }
+        }
+      } catch (err) {
+        alert(lang === 'bn' ? 'ভুল ফাইল ফরম্যাট!' : 'Invalid file format!');
+      }
+    };
+    reader.readAsText(file);
   };
 
   const handleSave = () => {
@@ -271,42 +320,62 @@ export const Moments: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
       <div className="absolute top-0 left-1/4 w-64 h-64 bg-pink-500/10 blur-[120px] rounded-full pointer-events-none" />
       <div className="absolute bottom-20 right-1/4 w-80 h-80 bg-purple-500/10 blur-[150px] rounded-full pointer-events-none" />
 
-      <div className="text-center mb-24 relative z-10">
+      <div className="text-center mb-20 space-y-4 relative z-10">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="inline-flex items-center gap-3 px-6 py-2 rounded-full glass-card luxury-text text-[#c5a059] mb-4 shadow-xl"
+        >
+          <Sparkles size={14} />
+          {lang === 'bn' ? 'সোনালী মুহূর্তগুলো' : 'Our Golden Timeline'}
+        </motion.div>
         <motion.h2 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="font-serif text-5xl md:text-7xl text-white mb-6 drop-shadow-[0_0_30px_rgba(255,105,180,0.4)]"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="font-display font-black text-7xl md:text-[110px] text-gradient italic leading-[0.8] tracking-tighter"
         >
           {l.title}
         </motion.h2>
         <motion.p 
           initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
+          animate={{ opacity: 1 }}
           transition={{ delay: 0.2 }}
-          className="text-white/60 italic text-xl md:text-2xl mb-10"
+          className="luxury-text pt-6 max-w-xl mx-auto leading-relaxed opacity-60"
         >
           {l.subtitle}
         </motion.p>
         
-        <div className="mt-8 flex justify-center gap-4">
+        <div className="mt-12 flex justify-center gap-4">
           {syncStatus !== 'idle' && (
             <div className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest border backdrop-blur-xl ${
-              syncStatus === 'synced' ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' : 
-              syncStatus === 'syncing' ? 'bg-blue-500/20 border-blue-500/30 text-blue-400' : 'bg-rose-500/20 border-rose-500/30 text-rose-400'
+              syncStatus === 'synced' ? 'bg-black/40 text-emerald-400 border-emerald-500/20' : 
+              syncStatus === 'syncing' ? 'bg-black/40 text-[#c5a059] border-[#c5a059]/20' : 'bg-black/40 text-rose-400 border-rose-500/20'
             }`}>
-              {syncStatus === 'synced' ? <Cloud size={14} /> : syncStatus === 'syncing' ? <RefreshCw size={14} className="animate-spin" /> : <CloudOff size={14} />}
+              {syncStatus === 'synced' ? <Cloud size={14} /> : syncStatus === 'syncing' ? <RefreshCw size={14} className="animate-spin text-[#c5a059]" /> : <CloudOff size={14} />}
               {syncStatus}
             </div>
           )}
           <button 
             onClick={handleAdd}
-            className="inline-flex items-center gap-2 bg-pink-500 hover:bg-pink-600 text-white px-8 py-4 rounded-full font-bold transition-all shadow-xl hover:scale-105 active:scale-95"
+            className="inline-flex items-center gap-2 bg-[#c5a059] hover:bg-[#b08e4a] text-black px-8 py-4 rounded-full font-black text-xs uppercase tracking-widest transition-all shadow-xl hover:scale-105 active:scale-95"
           >
             <Plus size={20} />
             {l.add}
           </button>
+          
+          <div className="flex gap-2">
+            <button 
+              onClick={exportBackup}
+              className="p-4 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-full transition-all border border-white/10 flex items-center gap-2"
+              title={lang === 'bn' ? 'ব্যাকআপ ডাউনলোড করুন' : 'Export Moments'}
+            >
+              <Download size={18} />
+            </button>
+            <label className="p-4 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-full transition-all border border-white/10 flex items-center gap-2 cursor-pointer">
+              <UploadIcon size={18} />
+              <input type="file" accept=".json" onChange={importBackup} className="hidden" />
+            </label>
+          </div>
         </div>
       </div>
 
@@ -327,15 +396,15 @@ export const Moments: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
               {/* Content Card */}
               <div className="flex-1 w-full">
                 <motion.div 
-                  whileHover={{ y: -5, scale: 1.01 }}
-                  className={`relative bg-white/5 backdrop-blur-2xl rounded-[40px] p-8 md:p-10 border border-white/10 shadow-2xl overflow-hidden group ${i % 2 === 0 ? 'md:text-right' : 'md:text-left'}`}
+                  whileHover={{ y: -8, scale: 1.02 }}
+                  className={`relative bg-white/[0.02] backdrop-blur-3xl rounded-[50px] p-10 md:p-14 border border-white/10 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)] overflow-hidden group transition-all duration-700 ${i % 2 === 0 ? 'md:text-right' : 'md:text-left'}`}
                 >
-                  <div className={`absolute inset-0 bg-gradient-to-br ${moment.color} opacity-[0.03] group-hover:opacity-[0.07] transition-opacity pointer-events-none`} />
-                  <div className={`absolute top-0 ${i % 2 === 0 ? 'right-0' : 'left-0'} w-32 h-1 bg-gradient-to-r ${moment.color} opacity-50 group-hover:opacity-100 transition-opacity`} />
+                  <div className={`absolute inset-0 bg-gradient-to-br ${moment.color} opacity-[0.02] group-hover:opacity-[0.05] transition-opacity pointer-events-none`} />
+                  <div className={`absolute top-0 ${i % 2 === 0 ? 'right-0' : 'left-0'} w-40 h-1 bg-gradient-to-r ${moment.color} group-hover:w-full transition-all duration-1000`} />
                   
-                  <div className={`flex items-center gap-3 mb-6 ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`flex items-center gap-4 mb-8 ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
                     <span 
-                      className="text-xs font-black text-pink-400 uppercase tracking-[0.2em] bg-pink-500/10 px-4 py-1.5 rounded-full border border-pink-500/20 cursor-pointer hover:bg-pink-500/20 transition-all"
+                      className="luxury-text text-[10px] text-[#c5a059] bg-[#c5a059]/10 px-6 py-2 rounded-full border border-[#c5a059]/20 cursor-pointer hover:bg-[#c5a059]/20 transition-all shadow-lg"
                       onClick={() => startInlineEdit(moment.id, 'date', moment.date)}
                     >
                       {inlineEdit?.id === moment.id && inlineEdit.field === 'date' ? (
@@ -345,30 +414,30 @@ export const Moments: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
                           onChange={(e) => setEditValue(e.target.value)}
                           onBlur={() => handleInlineSave(moment.id, 'date')}
                           onKeyDown={(e) => e.key === 'Enter' && handleInlineSave(moment.id, 'date')}
-                          className="bg-transparent border-none outline-none text-pink-400 w-32"
+                          className="bg-transparent border-none outline-none text-[#c5a059] w-32 font-bold"
                         />
                       ) : moment.date}
                     </span>
-                    <div className="flex gap-2 lg:opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-500 transform translate-y-2 group-hover:translate-y-0">
                       <button 
                         onClick={() => handleEdit(moment)} 
-                        className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+                        className="w-10 h-10 rounded-xl bg-white/5 hover:bg-[#c5a059] hover:text-black transition-all flex items-center justify-center border border-white/10"
                         title={l.edit}
                       >
-                        <Edit2 size={12} />
+                        <Edit2 size={14} />
                       </button>
                       <button 
                         onClick={(e) => handleDelete(moment.id, e)} 
-                        className="p-2 rounded-full bg-red-500/20 hover:bg-red-500 text-white transition-colors"
+                        className="w-10 h-10 rounded-xl bg-white/5 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center border border-white/10"
                         title={l.delete}
                       >
-                        <Trash2 size={12} />
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   </div>
                   
                   <div 
-                    className="cursor-pointer group/inline"
+                    className="cursor-pointer group/inline mb-6"
                     onClick={() => startInlineEdit(moment.id, lang === 'bn' ? 'titleBN' : 'titleEN', lang === 'bn' ? moment.titleBN : moment.titleEN)}
                   >
                     {inlineEdit?.id === moment.id && (inlineEdit.field === 'titleBN' || inlineEdit.field === 'titleEN') ? (
@@ -378,12 +447,11 @@ export const Moments: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
                         onChange={(e) => setEditValue(e.target.value)}
                         onBlur={() => handleInlineSave(moment.id, inlineEdit.field)}
                         onKeyDown={(e) => e.key === 'Enter' && handleInlineSave(moment.id, inlineEdit.field)}
-                        className="w-full bg-white/10 border-b-2 border-pink-500 font-serif text-3xl md:text-4xl text-white mb-4 outline-none px-4 py-2 rounded-t-2xl shadow-inner"
+                        className="w-full bg-white/5 border-b-2 border-[#c5a059] font-serif text-4xl md:text-5xl text-white outline-none px-6 py-4 rounded-t-3xl shadow-inner italic"
                       />
                     ) : (
-                      <h3 className="font-serif text-3xl md:text-4xl text-white mb-4 group-hover:text-pink-100 transition-colors flex items-center gap-3">
+                      <h3 className="font-display text-4xl md:text-5xl text-white italic font-bold tracking-tight group-hover:text-[#c5a059] transition-colors duration-500">
                         {lang === 'bn' ? moment.titleBN : moment.titleEN}
-                        <Edit2 size={16} className="opacity-0 group-hover/inline:opacity-40 transition-opacity" />
                       </h3>
                     )}
                   </div>
@@ -399,14 +467,13 @@ export const Moments: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
                         onChange={(e) => setEditValue(e.target.value)}
                         onBlur={() => handleInlineSave(moment.id, inlineEdit.field)}
                         rows={3}
-                        className="w-full bg-white/10 border-b-2 border-pink-500 text-white/90 text-lg leading-relaxed italic font-light outline-none p-6 rounded-t-2xl shadow-inner resize-none"
+                        className="w-full bg-white/5 border-b-2 border-[#c5a059] text-white/90 text-xl leading-relaxed italic font-light outline-none p-8 rounded-t-3xl shadow-inner resize-none font-serif"
                       />
                     ) : (
-                      <div className="flex items-start gap-3">
-                        <p className="text-white/50 text-lg leading-relaxed italic font-light flex-1">
+                      <div className={`flex items-start gap-4 ${i % 2 === 0 ? 'flex-row-reverse' : 'flex-row'}`}>
+                        <p className="text-white/60 text-xl leading-relaxed italic font-serif flex-1">
                           {lang === 'bn' ? moment.descriptionBN : moment.descriptionEN}
                         </p>
-                        <Edit2 size={14} className="opacity-0 group-hover/inline:opacity-40 transition-opacity mt-2" />
                       </div>
                     )}
                   </div>
@@ -416,11 +483,13 @@ export const Moments: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
               {/* Central Icon Junction */}
               <div className="relative z-10 shrink-0">
                 <motion.div 
-                  whileHover={{ rotate: 15, scale: 1.1 }}
-                  className={`w-20 h-20 rounded-full bg-gradient-to-br ${moment.color} flex items-center justify-center text-white border-4 border-white/10 shadow-[0_0_40px_rgba(0,0,0,0.3)] relative`}
+                  whileHover={{ rotate: 15, scale: 1.15 }}
+                  className={`w-24 h-24 rounded-full bg-gradient-to-br ${moment.color} flex items-center justify-center text-white border-4 border-white/10 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.5)] relative group-hover:shadow-[0_0_60px_${moment.color.split(' ')[0].replace('from-', '')}/30] transition-all duration-700`}
                 >
                   <div className="absolute inset-0 rounded-full animate-ping bg-white/10 opacity-20" />
-                  {ICON_MAP[moment.iconId] || <Heart size={24} />}
+                  <div className="scale-125">
+                    {ICON_MAP[moment.iconId] || <Heart size={24} />}
+                  </div>
                 </motion.div>
                 
                 {/* Connecting Line for Mobile */}
@@ -620,14 +689,24 @@ export const Moments: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
       <motion.button
         initial={{ opacity: 0, scale: 0.5, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        whileHover={{ scale: 1.1, rotate: 90 }}
+        whileHover={{ scale: 1.1, rotate: 180 }}
         whileTap={{ scale: 0.9 }}
         onClick={handleAdd}
-        className="fixed bottom-10 right-10 z-[100] w-16 h-16 bg-gradient-to-br from-pink-500 to-rose-600 text-white rounded-full flex items-center justify-center shadow-[0_10px_40px_rgba(244,63,94,0.5)] border-4 border-white/20 group backdrop-blur-sm"
+        className="fixed bottom-10 right-10 z-[100] w-20 h-20 bg-[#c5a059] text-black rounded-full flex items-center justify-center shadow-[0_32px_64px_-16px_rgba(197,160,89,0.5)] border-4 border-white/20 group backdrop-blur-sm"
         title={l.add}
       >
-        <Plus size={32} className="group-hover:scale-110 transition-transform" />
+        <Plus size={40} className="group-hover:scale-110 transition-transform" />
       </motion.button>
+
+      <ConfirmationDialog
+        isOpen={deleteConfirm.isOpen}
+        onClose={() => setDeleteConfirm({ isOpen: false, id: null })}
+        onConfirm={confirmDeleteAction}
+        title={lang === 'bn' ? 'মুছে ফেলতে চান?' : 'Delete Moment?'}
+        message={lang === 'bn' ? 'আপনি কি নিশ্চিত যে আপনি এই চমৎকার স্মৃতিটি মুছে ফেলতে চান? এটি আর ফিরিয়ে আনা সম্ভব নয়।' : 'Are you sure you want to remove this beautiful memory? This action cannot be undone.'}
+        confirmText={lang === 'bn' ? 'হ্যাঁ, ডিলিট করুন' : 'Yes, Delete'}
+        cancelText={lang === 'bn' ? 'না' : 'Cancel'}
+      />
     </div>
   );
 };

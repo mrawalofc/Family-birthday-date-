@@ -1,18 +1,71 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Outfit:wght@100..900&family=Inter:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Inter:wght@100..900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Outfit", "Inter", "Hind Siliguri", "Poppins", ui-sans-serif, system-ui, sans-serif;
-  --font-serif: "Playfair Display", "Great Vibes", serif;
+  --font-sans: "Inter", "Outfit", "Hind Siliguri", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Cormorant Garamond", serif;
+  --font-display: "Playfair Display", serif;
+  
+  --color-gold: #c5a059;
 }
 
 @layer base {
-  body {
-    @apply min-h-screen overflow-x-hidden text-white bg-[#1a0a2e];
-    background: linear-gradient(135deg, #1a0a2e 0%, #4a1942 25%, #893168 50%, #c44569 75%, #f8b500 100%);
-    background-size: 400% 400%;
-    animation: gradientBG 15s ease infinite;
+  html {
+    scroll-behavior: smooth;
   }
+  body {
+    @apply min-h-screen overflow-x-hidden text-white bg-[#0f0a1a];
+    cursor: default;
+  }
+  ::selection {
+    @apply bg-[#c5a059]/30 text-white;
+  }
+}
+
+.premium-btn {
+  @apply relative overflow-hidden transition-all duration-500 active:scale-95;
+}
+
+.premium-btn::after {
+  content: "";
+  @apply absolute inset-0 bg-white opacity-0 transition-opacity duration-500;
+}
+
+.premium-btn:hover::after {
+  @apply opacity-10;
+}
+
+.glass-card {
+  @apply bg-white/[0.02] backdrop-blur-3xl border border-white/10 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.1)];
+}
+
+.text-gradient {
+  @apply bg-clip-text text-transparent bg-gradient-to-br from-white via-white to-white/40;
+}
+
+.luxury-text {
+  @apply tracking-[0.25em] font-sans text-xs uppercase font-black text-white/40;
+}
+
+.mesh-gradient {
+  background-color: #0f0a1a;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(197, 160, 89, 0.1) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(236, 72, 153, 0.1) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.1) 0px, transparent 50%),
+    radial-gradient(at 0% 100%, rgba(197, 160, 89, 0.1) 0px, transparent 50%);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-white/10 rounded-full;
 }
 
 @keyframes gradientBG {

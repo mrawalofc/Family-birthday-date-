@@ -13,7 +13,7 @@ interface ProfileData {
   profilePic: string;
 }
 
-export const UserProfile: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
+export const UserProfile: React.FC<{ lang: 'bn' | 'en', setLang: (l: 'bn' | 'en') => void }> = ({ lang, setLang }) => {
   const [currentUser, setCurrentUser] = useState(auth.currentUser);
   const [profile, setProfile] = useState<ProfileData>({
     name: localStorage.getItem('profile_name') || (lang === 'bn' ? 'আমার নাম' : 'My Name'),
@@ -41,6 +41,7 @@ export const UserProfile: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
     bn: {
       title: 'ইউজার প্রোফাইল',
       themeTitle: 'প্রোফাইল থিম পরিবর্তন করুন',
+      languageTitle: 'ভাষা পরিবর্তন করুন',
       edit: 'এডিট প্রোফাইল',
       save: 'সেভ করুন',
       cancel: 'বাতিল',
@@ -65,6 +66,7 @@ export const UserProfile: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
     en: {
       title: 'User Profile',
       themeTitle: 'Change Profile Theme',
+      languageTitle: 'Change App Language',
       edit: 'Edit Profile',
       save: 'Save Changes',
       cancel: 'Cancel',
@@ -374,6 +376,32 @@ export const UserProfile: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
             >
               <div className={`w-10 h-10 rounded-full ${t.color} border-2 ${theme === t.id ? 'border-white' : 'border-transparent'} shadow-lg group-active:scale-90 transition-all`} />
               <span className={`text-[10px] font-bold ${theme === t.id ? 'text-white' : 'text-white/40'}`}>{t.name}</span>
+            </button>
+          ))}
+        </div>
+      </motion.div>
+
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white/5 backdrop-blur-xl rounded-[32px] p-6 border border-white/10 shadow-xl"
+      >
+        <h4 className="text-xs font-bold uppercase tracking-widest text-white/40 mb-4">{l.languageTitle}</h4>
+        <div className="flex gap-4">
+          {[
+            { id: 'bn', label: 'বাংলা' },
+            { id: 'en', label: 'English' }
+          ].map(lang_opt => (
+            <button
+              key={lang_opt.id}
+              onClick={() => { sounds.play('click'); setLang(lang_opt.id as 'bn' | 'en'); }}
+              className={`px-6 py-3 rounded-2xl text-[10px] font-bold uppercase tracking-[0.2em] transition-all border ${
+                lang === lang_opt.id 
+                  ? `${currentTheme.color} text-white border-transparent shadow-lg` 
+                  : 'bg-white/5 text-white/40 border-white/10 hover:bg-white/10'
+              }`}
+            >
+              {lang_opt.label}
             </button>
           ))}
         </div>

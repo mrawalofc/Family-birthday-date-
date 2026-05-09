@@ -1,80 +1,79 @@
 import React, { useEffect, useState } from 'react';
+import { motion } from 'motion/react';
 
 export const Background: React.FC = () => {
-  const [hearts, setHearts] = useState<{ id: number; left: string; delay: string; duration: string; size: string; symbol: string }[]>([]);
-  const [sparkles, setSparkles] = useState<{ id: number; left: string; top: string; delay: string; duration: string }[]>([]);
-  const [mousePos, setMousePos] = useState({ x: 50, y: 50 });
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
-    const heartSymbols = ['❤️', '💕', '💖', '💗', '💓', '💝', '💘', '💞'];
-    const newHearts = Array.from({ length: 30 }).map((_, i) => ({
-      id: i,
-      left: `${Math.random() * 100}%`,
-      delay: `${Math.random() * 10}s`,
-      duration: `${Math.random() * 10 + 8}s`,
-      size: `${Math.random() * 20 + 15}px`,
-      symbol: heartSymbols[Math.floor(Math.random() * heartSymbols.length)],
-    }));
-    setHearts(newHearts);
-
-    const newSparkles = Array.from({ length: 50 }).map((_, i) => ({
-      id: i,
-      left: `${Math.random() * 100}%`,
-      top: `${Math.random() * 100}%`,
-      delay: `${Math.random() * 3}s`,
-      duration: `${Math.random() * 2 + 2}s`,
-    }));
-    setSparkles(newSparkles);
-
     const handleMouseMove = (e: MouseEvent) => {
-      const x = (e.clientX / window.innerWidth) * 100;
-      const y = (e.clientY / window.innerHeight) * 100;
-      setMousePos({ x, y });
+      setMousePos({ x: e.clientX, y: e.clientY });
     };
-
     window.addEventListener('mousemove', handleMouseMove);
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
   return (
-    <>
-      <div 
-        className="fixed inset-0 z-0 transition-all duration-1000 ease-out"
-        style={{
-          background: 'linear-gradient(135deg, #1a0a2e 0%, #4a1942 25%, #893168 50%, #c44569 75%, #f8b500 100%)',
-          backgroundSize: '400% 400%',
-          backgroundPosition: `${mousePos.x / 2}% ${mousePos.y / 2}%`,
-          animation: 'gradient-bg 15s ease infinite alternate',
-        }}
-      />
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-[1]">
-        {hearts.map((heart) => (
-          <div
-            key={heart.id}
-            className="absolute bottom-[-50px] animate-float-up opacity-80"
-            style={{
-              left: heart.left,
-              animationDelay: heart.delay,
-              animationDuration: heart.duration,
-              fontSize: heart.size,
+    <div className="fixed inset-0 z-0 overflow-hidden bg-[#0f0a1a]">
+      {/* Animated Mesh Gradients */}
+      <div className="absolute inset-0 opacity-40">
+        <motion.div
+          animate={{
+            x: [0, 100, 0],
+            y: [0, -50, 0],
+            scale: [1, 1.2, 1],
+          }}
+          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+          className="absolute -top-1/4 -left-1/4 w-[1000px] h-[1000px] bg-[#c5a059]/10 blur-[150px] rounded-full"
+        />
+        <motion.div
+          animate={{
+            x: [0, -100, 0],
+            y: [0, 50, 0],
+            scale: [1.2, 1, 1.2],
+          }}
+          transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+          className="absolute -bottom-1/4 -right-1/4 w-[1000px] h-[1000px] bg-rose-500/10 blur-[150px] rounded-full"
+        />
+        <motion.div
+          animate={{
+            x: [mousePos.x / 10, mousePos.x / 5],
+            y: [mousePos.y / 10, mousePos.y / 5],
+          }}
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-indigo-500/5 blur-[120px] rounded-full"
+        />
+      </div>
+
+      {/* Floating Light Particles */}
+      <div className="absolute inset-0 pointer-events-none">
+        {Array.from({ length: 40 }).map((_, i) => (
+          <motion.div
+            key={i}
+            initial={{ 
+              x: Math.random() * 2000, 
+              y: Math.random() * 2000, 
+              opacity: Math.random() * 0.3,
+              scale: Math.random() * 2
             }}
-          >
-            {heart.symbol}
-          </div>
-        ))}
-        {sparkles.map((sparkle) => (
-          <div
-            key={sparkle.id}
-            className="absolute w-1 h-1 bg-white rounded-full animate-sparkle"
+            animate={{
+              y: ['0px', '-100px', '0px'],
+              opacity: [0.1, 0.4, 0.1],
+            }}
+            transition={{
+              duration: Math.random() * 5 + 5,
+              repeat: Infinity,
+              delay: Math.random() * 10
+            }}
+            className="absolute w-1 h-1 bg-white rounded-full bg-glow shadow-[0_0_10px_white]"
             style={{
-              left: sparkle.left,
-              top: sparkle.top,
-              animationDelay: sparkle.delay,
-              animationDuration: sparkle.duration,
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
             }}
           />
         ))}
       </div>
-    </>
+
+      {/* Grainy Texture */}
+      <div className="absolute inset-0 opacity-[0.15] mix-blend-overlay pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
+    </div>
   );
 };

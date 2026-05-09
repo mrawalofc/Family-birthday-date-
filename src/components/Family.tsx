@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, Trash2, Edit2, RotateCcw, Save, Users, Calendar, Clock, Star, Loader2, Bell, X, Cloud, CloudOff, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, Edit2, RotateCcw, Save, Users, Calendar, Clock, Star, Loader2, Bell, X, Cloud, CloudOff, RefreshCw, Download, Upload as UploadIcon, Heart, Sparkles } from 'lucide-react';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { sounds } from '../lib/sounds';
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query, writeBatch, getDocs } from 'firebase/firestore';
+import { ConfirmationDialog } from './ConfirmationDialog';
 
 interface FamilyMember {
   id: string;
@@ -106,6 +107,7 @@ export const Family: React.FC<{ lang: 'bn' | 'en', defaultViewMode?: 'grid' | 'm
   const [soundEnabled, setSoundEnabled] = useState(sounds.isEnabled());
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
   const [isInitialSync, setIsInitialSync] = useState(true);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; memberId: string | null; all: boolean }>({ isOpen: false, memberId: null, all: false });
   const notifiedToday = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -311,11 +313,15 @@ export const Family: React.FC<{ lang: 'bn' | 'en', defaultViewMode?: 'grid' | 'm
   };
 
   const deleteMember = (id: string) => {
-    if (window.confirm('Are you sure?')) {
-      setMembers(members.filter(m => m.id !== id));
-      removeFromFirestore(id);
-      sounds.play('click');
-    }
+    setDeleteConfirm({ isOpen: true, memberId: id, all: false });
+  };
+
+  const confirmDeleteMember = () => {
+    if (!deleteConfirm.memberId) return;
+    const id = deleteConfirm.memberId;
+    setMembers(members.filter(m => m.id !== id));
+    removeFromFirestore(id);
+    sounds.play('click');
   };
 
   const editMember = (m: FamilyMember) => {
@@ -326,14 +332,63 @@ export const Family: React.FC<{ lang: 'bn' | 'en', defaultViewMode?: 'grid' | 'm
   };
 
   const clearAllMembers = () => {
-    if (!window.confirm(lang === 'bn' ? 'আপনি কি নিশ্চিত যে আপনি সমস্ত পরিবারের সদস্যদের তালিকা ডিলিট করতে চান?' : 'Are you sure you want to clear all family members?')) return;
-    
+    setDeleteConfirm({ isOpen: true, memberId: null, all: true });
+  };
+
+  const confirmClearAll = () => {
     sounds.play('error');
     setIsClearingAll(true);
     setTimeout(() => {
+      // Also delete from Firestore if needed
+      if (auth.currentUser) {
+        const familyRef = collection(db, 'users', auth.currentUser.uid, 'family');
+        members.forEach(m => deleteDoc(doc(familyRef, m.id)));
+      }
       setMembers([]);
       setIsClearingAll(false);
     }, 500);
+  };
+
+  const exportBackup = () => {
+    const data = JSON.stringify(members, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `family_celebration_backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    sounds.play('success');
+  };
+
+  const importBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const data = JSON.parse(event.target?.result as string);
+        if (Array.isArray(data)) {
+          if (confirm(lang === 'bn' ? 'ব্যাকআপ ইমপোর্ট করলে বর্তমান ডাটা ওভাররাইট হয়ে যাবে। আপনি কি নিশ্চিত?' : 'Importing backup will overwrite current data. Are you sure?')) {
+            setMembers(data);
+            if (auth.currentUser) {
+              const familyRef = collection(db, 'users', auth.currentUser.uid, 'family');
+              const batch = writeBatch(db);
+              data.forEach(m => batch.set(doc(familyRef, m.id), m));
+              await batch.commit();
+            }
+            sounds.play('success');
+            alert(lang === 'bn' ? 'ব্যাকআপ সফলভাবে ইমপোর্ট করা হয়েছে!' : 'Backup imported successfully!');
+          }
+        }
+      } catch (err) {
+        alert(lang === 'bn' ? 'ভুল ফাইল ফরম্যাট!' : 'Invalid file format!');
+      }
+    };
+    reader.readAsText(file);
   };
 
   const getAge = (bdayStr: string) => {
@@ -371,12 +426,20 @@ export const Family: React.FC<{ lang: 'bn' | 'en', defaultViewMode?: 'grid' | 'm
   const t = texts[lang];
 
   return (
-    <div className="w-full max-w-6xl mx-auto py-10 px-5 relative z-10">
-      <div className="text-center mb-16 space-y-4">
+    <div className="w-full max-w-7xl mx-auto py-16 px-6 relative z-10">
+      <div className="text-center mb-24 space-y-6">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="inline-flex items-center gap-3 px-6 py-2 rounded-full glass-card luxury-text text-[#c5a059] mb-4 shadow-xl"
+        >
+          <Star size={14} className="fill-[#c5a059]" />
+          {lang === 'bn' ? 'আমাদের বংশগাথা' : 'Our Legacy of Love'}
+        </motion.div>
         <motion.h2 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="font-serif text-6xl md:text-7xl text-white drop-shadow-[0_0_25px_rgba(255,105,180,0.6)]"
+          className="font-display font-black text-7xl md:text-[120px] text-gradient italic leading-[0.8] tracking-tighter"
         >
           {t.title}
         </motion.h2>
@@ -384,7 +447,7 @@ export const Family: React.FC<{ lang: 'bn' | 'en', defaultViewMode?: 'grid' | 'm
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.2 }}
-          className="text-white/70 italic text-xl"
+          className="luxury-text pt-4 max-w-xl mx-auto leading-relaxed opacity-60"
         >
           {t.subtitle}
         </motion.p>
@@ -392,104 +455,90 @@ export const Family: React.FC<{ lang: 'bn' | 'en', defaultViewMode?: 'grid' | 'm
 
       {/* Form Card */}
       <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="bg-white/10 backdrop-blur-2xl rounded-[40px] p-8 md:p-12 border border-white/20 shadow-2xl mb-12 relative overflow-hidden"
+        initial={{ opacity: 0, y: 40 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white/[0.02] backdrop-blur-3xl rounded-[60px] p-12 md:p-24 mb-24 relative overflow-hidden group shadow-[0_64px_128px_-32px_rgba(0,0,0,0.8)] border border-white/10"
       >
-        <div className="absolute top-0 right-0 p-8 text-pink-500/10 pointer-events-none">
-          <Star size={120} strokeWidth={1} />
+        <div className="absolute -top-24 -right-24 p-24 text-[#c5a059]/[0.02] pointer-events-none group-hover:scale-125 transition-transform duration-[2000ms] ease-out">
+          <Heart size={400} strokeWidth={0.5} />
         </div>
 
-        <h3 className="font-serif text-3xl text-pink-300 mb-8 text-center flex items-center justify-center gap-3">
-          {t.formTitle}
-        </h3>
-
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="flex flex-col gap-3">
-            <label className="text-sm font-bold text-white/50 uppercase tracking-widest flex items-center gap-2">
-              <Users size={14} /> {t.lblName}
-            </label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={e => setFormData({ ...formData, name: e.target.value })}
-              className="bg-black/30 border border-white/10 rounded-2xl px-6 py-4 text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-pink-500/50 transition-all font-medium"
-              placeholder="Full Name"
-            />
+        <div className="relative z-10">
+          <div className="text-center mb-16">
+            <h3 className="font-display text-5xl md:text-7xl text-white mb-6 italic font-bold tracking-tight">
+              {t.formTitle}
+            </h3>
+            <div className="w-24 h-px bg-[#c5a059]/30 mx-auto rounded-full shadow-[0_0_10px_#c5a059]" />
           </div>
 
-          <div className="flex flex-col gap-3">
-            <label className="text-sm font-bold text-white/50 uppercase tracking-widest flex items-center gap-2">
-              <Star size={14} /> {t.lblRelation}
-            </label>
-            <div className="relative">
-              <select
-                value={formData.relation}
-                onChange={e => setFormData({ ...formData, relation: e.target.value })}
-                className="w-full bg-black/30 border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:ring-2 focus:ring-pink-500/50 transition-all appearance-none cursor-pointer"
-              >
-                {relations.map(r => (
-                  <option key={r} value={r} className="bg-gray-900 text-white">
-                    {(t.relationMap as any)[r] || r}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-bold text-white/50 uppercase tracking-widest flex items-center gap-2">
-                <Calendar size={14} /> {t.lblBirthday}
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-12">
+            <div className="space-y-4">
+              <label className="luxury-text flex items-center gap-3">
+                <Users size={14} className="text-[#c5a059]" /> {t.lblName}
               </label>
-              <button 
-                type="button"
-                onClick={() => setDateInputType(dateInputType === 'picker' ? 'text' : 'picker')}
-                className="text-[10px] font-black text-pink-400 hover:text-pink-300 transition-colors uppercase tracking-widest"
-              >
-                {dateInputType === 'picker' ? (lang === 'bn' ? 'ম্যানুয়াল এডিট' : 'Manual Edit') : (lang === 'bn' ? 'পিকার ব্যবহার করুন' : 'Use Picker')}
-              </button>
-            </div>
-            {dateInputType === 'picker' ? (
-              <input
-                type="date"
-                value={formData.birthday}
-                onChange={e => setFormData({ ...formData, birthday: e.target.value })}
-                className="bg-black/30 border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:ring-2 focus:ring-pink-500/50 transition-all cursor-pointer"
-              />
-            ) : (
               <input
                 type="text"
+                value={formData.name}
+                onChange={e => setFormData({ ...formData, name: e.target.value })}
+                className="w-full bg-white/[0.02] border border-white/10 rounded-2xl px-8 py-6 text-white text-xl placeholder-white/10 focus:outline-none focus:ring-2 focus:ring-[#c5a059]/50 transition-all font-display italic font-medium"
+                placeholder="Full Name"
+              />
+            </div>
+
+            <div className="space-y-4">
+              <label className="luxury-text flex items-center gap-3">
+                <Star size={14} className="text-[#c5a059]" /> {t.lblRelation}
+              </label>
+              <div className="relative">
+                <select
+                  value={formData.relation}
+                  onChange={e => setFormData({ ...formData, relation: e.target.value })}
+                  className="w-full bg-white/[0.02] border border-white/10 rounded-2xl px-8 py-6 text-white text-xl focus:outline-none focus:ring-2 focus:ring-[#c5a059]/50 transition-all appearance-none cursor-pointer font-display italic font-medium"
+                >
+                  {relations.map(r => (
+                    <option key={r} value={r} className="bg-[#0f0a1a] text-white">
+                      {(t.relationMap as any)[r] || r}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <label className="luxury-text flex items-center gap-3">
+                  <Calendar size={14} className="text-[#c5a059]" /> {t.lblBirthday}
+                </label>
+                <button 
+                  type="button"
+                  onClick={() => setDateInputType(dateInputType === 'picker' ? 'text' : 'picker')}
+                  className="luxury-text opacity-40 hover:opacity-100 transition-opacity text-[10px]"
+                >
+                  {dateInputType === 'picker' ? (lang === 'bn' ? 'ম্যানুয়াল' : 'Manual') : (lang === 'bn' ? 'পিকার' : 'Picker')}
+                </button>
+              </div>
+              <input
+                type={dateInputType === 'picker' ? 'date' : 'text'}
                 value={formData.birthday}
                 onChange={e => setFormData({ ...formData, birthday: e.target.value })}
-                placeholder="YYYY-MM-DD"
-                className="bg-black/30 border border-white/10 rounded-2xl px-6 py-4 text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-pink-500/50 transition-all font-medium"
+                placeholder={dateInputType === 'text' ? 'YYYY-MM-DD' : undefined}
+                className="w-full bg-white/[0.02] border border-white/10 rounded-2xl px-8 py-6 text-white text-xl focus:outline-none focus:ring-2 focus:ring-[#c5a059]/50 transition-all cursor-pointer font-display italic font-medium"
               />
-            )}
-          </div>
+            </div>
 
-          <div className="md:col-span-3 flex flex-wrap justify-center gap-4 md:gap-6 mt-4">
-            <motion.button 
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              type="submit" 
-              className="bg-gradient-to-r from-pink-500 to-rose-600 text-white px-12 py-4 rounded-xl font-bold shadow-xl shadow-pink-500/20 hover:shadow-pink-500/40 transition-all flex items-center gap-3"
-            >
-              {editingId ? <Save size={20} /> : <Plus size={20} />}
-              {editingId ? t.btnUpdate : t.btnAdd}
-            </motion.button>
-
-            <motion.button 
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              type="button" 
-              onClick={() => { setFormData({ name: '', relation: 'Father', birthday: '' }); setEditingId(null); }}
-              className="bg-white/5 text-white border border-white/10 px-12 py-4 rounded-xl font-bold hover:bg-white/10 transition-all flex items-center gap-3"
-            >
-              <RotateCcw size={20} /> {t.btnClear}
-            </motion.button>
-          </div>
-        </form>
+            <div className="md:col-span-3 flex justify-center gap-8 mt-8">
+              <motion.button 
+                whileHover={{ y: -5, scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                type="submit" 
+                className="bg-white text-black px-12 py-6 rounded-2xl font-black text-xs uppercase tracking-[0.3em] shadow-2xl hover:bg-[#c5a059] transition-all flex items-center gap-4 premium-btn"
+              >
+                {editingId ? <Save size={18} /> : <Plus size={18} />}
+                {editingId ? t.btnUpdate : t.btnAdd}
+              </motion.button>
+            </div>
+          </form>
+        </div>
       </motion.div>
 
       {/* View Mode Switching / Monitoring Dashboard Option */}
@@ -569,23 +618,40 @@ export const Family: React.FC<{ lang: 'bn' | 'en', defaultViewMode?: 'grid' | 'm
                {members.length} {lang === 'bn' ? 'সদস্য মনিটর হচ্ছে' : 'Members Active'}
              </div>
           </div>
+
+          {/* Backup Buttons */}
+          <div className="flex gap-2">
+            <button 
+              onClick={exportBackup}
+              className="p-3 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-2xl transition-all border border-white/10 flex items-center gap-2"
+              title={lang === 'bn' ? 'ব্যাকআপ ডাউনলোড করুন' : 'Export Backup'}
+            >
+              <Download size={18} />
+              <span className="text-[10px] font-black uppercase tracking-widest">{lang === 'bn' ? 'ব্যাকআপ' : 'Backup'}</span>
+            </button>
+            <label className="p-3 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-2xl transition-all border border-white/10 flex items-center gap-2 cursor-pointer">
+              <UploadIcon size={18} />
+              <span className="text-[10px] font-black uppercase tracking-widest">{lang === 'bn' ? 'রিস্টোর' : 'Restore'}</span>
+              <input type="file" accept=".json" onChange={importBackup} className="hidden" />
+            </label>
+          </div>
       </div>
     </div>
 
-      <div className="bg-white/5 backdrop-blur-xl rounded-[35px] p-10 border border-white/10 shadow-2xl mb-16 relative overflow-hidden group">
-        <h3 className="font-serif text-3xl text-pink-200 mb-8 text-center">{t.statsTitle}</h3>
+      <div className="bg-white/[0.02] backdrop-blur-3xl rounded-[40px] p-12 border border-white/10 shadow-2xl mb-24 relative overflow-hidden group">
+        <h3 className="font-display italic font-bold text-4xl text-[#c5a059] mb-12 text-center uppercase tracking-tighter">{t.statsTitle}</h3>
         <div className="flex flex-wrap justify-around gap-12 text-center relative z-10">
           <div className="flex flex-col items-center">
-            <div className="text-6xl font-black text-yellow-400 drop-shadow-[0_0_15px_rgba(250,204,21,0.5)]">{stats.total}</div>
-            <div className="text-xs font-bold text-white/40 uppercase tracking-[0.3em] mt-3">{t.totalMembers}</div>
+            <div className="text-7xl font-black text-white leading-none">{stats.total}</div>
+            <div className="luxury-text text-[#c5a059] mt-4">{t.totalMembers}</div>
           </div>
           <div className="flex flex-col items-center">
-            <div className="text-6xl font-black text-pink-400 drop-shadow-[0_0_15px_rgba(244,114,182,0.5)]">{stats.upcoming}</div>
-            <div className="text-xs font-bold text-white/40 uppercase tracking-[0.3em] mt-3">{t.upcoming}</div>
+            <div className="text-7xl font-black text-white leading-none">{stats.upcoming}</div>
+            <div className="luxury-text text-[#c5a059] mt-4">{t.upcoming}</div>
           </div>
           <div className="flex flex-col items-center">
-            <div className="text-6xl font-black text-cyan-400 drop-shadow-[0_0_15px_rgba(34,211,238,0.5)]">{stats.thisMonth}</div>
-            <div className="text-xs font-bold text-white/40 uppercase tracking-[0.3em] mt-3">{t.thisMonth}</div>
+            <div className="text-7xl font-black text-white leading-none">{stats.thisMonth}</div>
+            <div className="luxury-text text-[#c5a059] mt-4">{t.thisMonth}</div>
           </div>
         </div>
 
@@ -593,18 +659,18 @@ export const Family: React.FC<{ lang: 'bn' | 'en', defaultViewMode?: 'grid' | 'm
           <motion.div 
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
-            className="mt-12 pt-8 border-t border-white/5 relative z-10"
+            className="mt-16 pt-12 border-t border-white/5 relative z-10"
           >
-            <p className="text-center text-[10px] font-black text-cyan-400/60 uppercase tracking-[0.5em] mb-6">
+            <p className="text-center luxury-text text-white/40 mb-8">
               {lang === 'bn' ? 'এই মাসের তারকারা' : 'Stars of the Month'}
             </p>
-            <div className="flex flex-wrap justify-center gap-4">
+            <div className="flex flex-wrap justify-center gap-6">
               {stats.monthMembers.map(m => (
-                <div key={m.id} className="bg-white/5 border border-white/10 rounded-2xl px-6 py-3 flex items-center gap-3 hover:bg-white/10 transition-all">
-                  <span className="text-xl">{getRelationIcon(m.relation)}</span>
+                <div key={m.id} className="bg-white/5 border border-white/10 rounded-2xl px-8 py-4 flex items-center gap-4 hover:bg-[#c5a059]/10 hover:border-[#c5a059]/30 transition-all group">
+                  <span className="text-3xl filter grayscale group-hover:grayscale-0 transition-all">{getRelationIcon(m.relation)}</span>
                   <div>
-                    <p className="text-white font-bold text-sm leading-tight">{m.name}</p>
-                    <p className="text-white/30 text-[10px] uppercase font-black tracking-widest">
+                    <p className="text-white font-display italic font-bold text-lg leading-tight">{m.name}</p>
+                    <p className="luxury-text text-[#c5a059] text-[9px] mt-1">
                       {new Date(m.birthday).toLocaleDateString(lang === 'bn' ? 'bn-BD' : 'en-US', { day: 'numeric', month: 'short' })}
                     </p>
                   </div>
@@ -620,7 +686,7 @@ export const Family: React.FC<{ lang: 'bn' | 'en', defaultViewMode?: 'grid' | 'm
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-16"
+          className="mb-24"
         >
           {(() => {
             const sorted = members.map(m => ({ ...m, status: getNextBdayStatus(m.birthday) }))
@@ -629,57 +695,56 @@ export const Family: React.FC<{ lang: 'bn' | 'en', defaultViewMode?: 'grid' | 'm
             const cd = getCountdown(nextMember.status.next);
             
             return (
-              <div className="relative bg-gradient-to-br from-pink-500/20 to-purple-600/20 backdrop-blur-3xl rounded-[50px] p-10 border border-white/20 shadow-pink-500/10 shadow-2xl overflow-hidden group">
-                <div className="absolute -top-20 -right-20 w-64 h-64 bg-pink-500/10 blur-[100px] rounded-full group-hover:bg-pink-500/20 transition-all duration-1000" />
-                <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-purple-500/10 blur-[100px] rounded-full group-hover:bg-purple-500/20 transition-all duration-1000" />
+              <div className="relative bg-white/[0.02] backdrop-blur-3xl rounded-[60px] p-12 md:p-16 border border-white/10 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.8)] overflow-hidden group">
+                <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[#c5a059]/5 blur-[120px] rounded-full group-hover:opacity-100 transition-opacity duration-[2000ms]" />
                 
-                <div className="relative z-10 flex flex-col md:flex-row items-center gap-12">
+                <div className="relative z-10 flex flex-col md:flex-row items-center gap-16">
                   <div className="flex flex-col items-center text-center md:text-left md:items-start flex-1">
-                    <div className="bg-pink-500 text-white text-[10px] font-black px-4 py-1.5 rounded-full mb-4 uppercase tracking-widest shadow-lg shadow-pink-500/30">
+                    <div className="glass-card text-[10px] luxury-text text-[#c5a059] px-6 py-2 rounded-full mb-8 shadow-xl border border-[#c5a059]/20">
                       {lang === 'bn' ? 'পরবর্তী উৎসব' : 'Next Celebration'}
                     </div>
-                    <div className="text-8xl mb-4 animate-bounce-slow">
+                    <div className="text-[120px] mb-6 filter grayscale brightness-200 group-hover:grayscale-0 group-hover:scale-110 transition-all duration-[1000ms] leading-none">
                       {getRelationIcon(nextMember.relation)}
                     </div>
-                    <h4 className="font-serif text-5xl text-white mb-2">{nextMember.name}</h4>
-                    <p className="text-pink-300 font-bold text-lg uppercase tracking-widest">
+                    <h4 className="font-display italic text-6xl text-white mb-4 tracking-tight leading-none">{nextMember.name}</h4>
+                    <p className="luxury-text text-[#c5a059] text-sm opacity-60">
                       {(t.relationMap as any)[nextMember.relation] || nextMember.relation}
                     </p>
-                    <div className="flex items-center gap-2 mt-4 text-white/40">
-                      <Calendar size={16} />
-                      <span className="text-sm">
+                    <div className="flex items-center gap-3 mt-8 luxury-text text-white/30 text-xs">
+                      <Calendar size={14} className="text-[#c5a059]" />
+                      <span>
                         {nextMember.status.next.toLocaleDateString(lang === 'bn' ? 'bn-BD' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                       </span>
                     </div>
                   </div>
 
-                  <div className="flex-1 w-full max-w-xl">
-                    <div className="grid grid-cols-4 gap-4">
+                  <div className="flex-1 w-full max-w-2xl px-4">
+                    <div className="grid grid-cols-4 gap-6">
                       {[
                         { val: cd.days, label: t.days },
                         { val: cd.hours, label: t.hours },
                         { val: cd.minutes, label: t.min },
                         { val: cd.seconds, label: t.sec }
                       ].map((item, idx) => (
-                        <div key={idx} className="bg-white/10 backdrop-blur-md rounded-[30px] p-6 border border-white/10 text-center shadow-inner group/box relative overflow-hidden">
-                          <div className="absolute inset-0 bg-white/5 opacity-0 group-hover/box:opacity-100 transition-opacity" />
+                        <div key={idx} className="bg-white/[0.02] border border-white/5 rounded-[32px] p-8 text-center backdrop-blur-3xl group/cd relative overflow-hidden transition-all hover:bg-white/5">
+                          <div className="absolute inset-0 bg-[#c5a059]/5 opacity-0 group-hover/cd:opacity-100 transition-opacity" />
                           <motion.div 
                             key={`spotlight-${idx}-${item.val}`}
-                            initial={{ scale: 1.2, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            className="text-4xl md:text-5xl font-black text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.3)] mb-2"
+                            initial={{ y: 20, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            className="text-5xl font-black text-white leading-none mb-3"
                           >
                             {String(item.val).padStart(2, '0')}
                           </motion.div>
-                          <div className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em]">{item.label}</div>
+                          <div className="luxury-text text-[10px] text-white/30">{item.label}</div>
                         </div>
                       ))}
                     </div>
-                    <div className="mt-8 bg-black/30 rounded-3xl p-6 border border-white/5 text-center">
-                      <p className="text-white/60 text-sm font-medium mb-1 uppercase tracking-widest">
+                    <div className="mt-10 bg-white/[0.01] rounded-[32px] p-8 border border-white/5 text-center backdrop-blur-md">
+                      <p className="luxury-text text-white/20 mb-2">
                         {lang === 'bn' ? 'বর্তমান বয়স' : 'Current Age'}
                       </p>
-                      <p className="text-4xl font-black text-yellow-400 drop-shadow-md">
+                      <p className="text-6xl font-black text-gradient">
                         {getAge(nextMember.birthday)}
                       </p>
                     </div>
@@ -805,107 +870,79 @@ export const Family: React.FC<{ lang: 'bn' | 'en', defaultViewMode?: 'grid' | 'm
         </motion.div>
       ) : (
         /* Members Grid */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
           <AnimatePresence mode="popLayout">
             {members.length === 0 ? (
               <motion.div 
                 key="empty"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 0.3 }}
-                className="col-span-full text-center py-32 text-white italic text-2xl"
+                className="col-span-full text-center py-40 luxury-text italic text-xl lowercase"
               >
                 {t.empty}
               </motion.div>
             ) : (
               members.slice().reverse().map((m, i) => {
                 const { next: nextBday, isToday } = getNextBdayStatus(m.birthday);
-                const cd = getCountdown(nextBday);
                 const age = getAge(m.birthday);
                 const nextBdayStr = nextBday.toLocaleDateString(lang === 'bn' ? 'bn-BD' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' });
                 
                 return (
                   <motion.div 
                     key={m.id}
-                    initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                    transition={{ delay: i * 0.05 }}
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ delay: i * 0.1 }}
                     layout
-                    className={`bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[45px] p-8 text-center relative group hover:bg-white/10 hover:shadow-2xl hover:shadow-pink-500/10 transition-all duration-500 ${isToday ? 'ring-4 ring-pink-500/50' : ''}`}
+                    className={`glass-card rounded-[50px] p-10 text-center relative group transition-all duration-700 hover:-translate-y-2 overflow-hidden ${isToday ? 'border-[#c5a059] shadow-[0_32px_64px_rgba(197,160,89,0.2)]' : ''}`}
                   >
-                    {isToday && (
-                      <motion.div 
-                        animate={{ scale: [1, 1.1, 1] }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                        className="absolute -top-4 left-1/2 -translate-x-1/2 bg-yellow-400 text-black text-[10px] font-black px-4 py-1 rounded-full shadow-lg"
-                      >
-                        {t.isToday}
-                      </motion.div>
-                    )}
-
-                    <div className="text-6xl mb-4 group-hover:scale-110 transition-transform duration-500 block">
-                      {getRelationIcon(m.relation)}
+                    {/* Decorative Corner */}
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-white/[0.02] rounded-bl-[50px] pointer-events-none flex items-center justify-center">
+                      <Star size={16} className={isToday ? "text-[#c5a059] animate-pulse" : "text-white/10"} />
                     </div>
+
+                    <motion.div 
+                      whileHover={{ scale: 1.1, rotate: 5 }}
+                      className="text-7xl mb-8 select-none"
+                    >
+                      {getRelationIcon(m.relation)}
+                    </motion.div>
                     
-                    <div className="font-serif text-3xl text-pink-200 mb-2">{m.name}</div>
-                    <div className="text-sm font-bold text-white/30 uppercase tracking-[0.2em] mb-4">
+                    <h3 className="font-display text-4xl text-white mb-2 italic font-bold tracking-tight">{m.name}</h3>
+                    <div className="luxury-text opacity-40 mb-8">
                       {(t.relationMap as any)[m.relation] || m.relation}
                     </div>
 
-                    <div className="bg-white/5 rounded-3xl p-4 mb-6 border border-white/5">
-                      <div className="text-xs text-white/40 uppercase font-black mb-1">{t.nextBday}</div>
-                      <div className="text-pink-400 font-bold">{isToday ? t.happyBday : nextBdayStr}</div>
+                    <div className="space-y-6 mb-10">
+                      <div className="flex flex-col items-center">
+                        <span className="luxury-text text-[10px] mb-2">{t.age}</span>
+                        <span className="text-5xl font-display font-black text-white/90 italic">{age}</span>
+                      </div>
+
+                      <div className="h-px w-12 bg-white/10 mx-auto" />
+
+                      <div className="flex flex-col items-center">
+                        <span className="luxury-text text-[10px] mb-2">{t.nextBday}</span>
+                        <span className={`text-lg font-serif italic ${isToday ? 'text-[#c5a059] animate-pulse' : 'text-white/60'}`}>
+                          {isToday ? t.happyBday : nextBdayStr}
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="text-4xl font-black text-yellow-400 mb-8 drop-shadow-md">
-                      {t.age}: {age}
-                    </div>
-
-                    <div className={`bg-gradient-to-br transition-all duration-500 ${isToday ? 'from-yellow-400/20 to-pink-500/20' : 'from-pink-500/20 to-purple-500/20'} rounded-[30px] p-4 border border-white/10 mb-8 flex justify-center items-center gap-2`}>
-                      <span className="text-2xl font-black text-white">
-                        {isToday ? '0' : cd.days}
-                      </span>
-                      <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">{t.daysLeft}</span>
-                    </div>
-
-                    <div className="grid grid-cols-4 gap-2 mb-8">
-                      {[
-                        { val: isToday ? 0 : cd.days, label: t.days },
-                        { val: isToday ? 0 : cd.hours, label: t.hours },
-                        { val: isToday ? 0 : cd.minutes, label: t.min },
-                        { val: isToday ? 0 : cd.seconds, label: t.sec }
-                      ].map((item, idx) => (
-                        <div key={idx} className="bg-black/20 rounded-2xl p-3 border border-white/5">
-                          <motion.div 
-                            key={`${m.id}-${idx}-${item.val}`}
-                            initial={{ y: -5, opacity: 0 }}
-                            animate={{ y: 0, opacity: 1 }}
-                            className="text-xl font-black text-white"
-                          >
-                            {String(item.val).padStart(2, '0')}
-                          </motion.div>
-                          <div className="text-[8px] font-bold text-white/30 uppercase tracking-tighter mt-1">{item.label}</div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex justify-center gap-4">
-                      <motion.button 
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
+                    <div className="flex justify-center gap-3 opacity-0 group-hover:opacity-100 transition-all duration-500 transform translate-y-4 group-hover:translate-y-0">
+                      <button 
                         onClick={() => editMember(m)}
-                        className="bg-emerald-500/80 text-white p-3.5 rounded-2xl hover:bg-emerald-500 transition-all shadow-xl shadow-emerald-500/20"
+                        className="w-12 h-12 rounded-2xl bg-white/5 hover:bg-[#c5a059] hover:text-black transition-all flex items-center justify-center border border-white/10"
                       >
                         <Edit2 size={18} />
-                      </motion.button>
-                      <motion.button 
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
+                      </button>
+                      <button 
                         onClick={() => deleteMember(m.id)}
-                        className="bg-rose-500/80 text-white p-3.5 rounded-2xl hover:bg-rose-500 transition-all shadow-xl shadow-rose-500/20"
+                        className="w-12 h-12 rounded-2xl bg-white/5 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center border border-white/10"
                       >
-                        <Trash2 size={18} strokeWidth={2.5} />
-                      </motion.button>
+                        <Trash2 size={18} />
+                      </button>
                     </div>
                   </motion.div>
                 );
@@ -914,6 +951,19 @@ export const Family: React.FC<{ lang: 'bn' | 'en', defaultViewMode?: 'grid' | 'm
           </AnimatePresence>
         </div>
       )}
+
+      <ConfirmationDialog
+        isOpen={deleteConfirm.isOpen}
+        onClose={() => setDeleteConfirm({ isOpen: false, memberId: null, all: false })}
+        onConfirm={deleteConfirm.all ? confirmClearAll : confirmDeleteMember}
+        title={deleteConfirm.all ? (lang === 'bn' ? 'সব ডিলিট করবেন?' : 'Clear Everything?') : (lang === 'bn' ? 'সদস্য ডিলিট করবেন?' : 'Delete Member?')}
+        message={deleteConfirm.all 
+          ? (lang === 'bn' ? 'আপনি কি নিশ্চিত যে সমস্ত পরিবারের সদস্য ডিলিট করতে চান? এটি আর ফিরিয়ে আনা সম্ভব নয়।' : 'Are you sure you want to clear all family members? This action cannot be undone.')
+          : (lang === 'bn' ? 'আপনি কি এই সদস্যকে তালিকা থেকে ডিলিট করতে চান?' : 'Are you sure you want to remove this family member from the list?')
+        }
+        confirmText={lang === 'bn' ? 'হ্যাঁ, ডিলিট করুন' : 'Yes, Delete'}
+        cancelText={lang === 'bn' ? 'না' : 'Cancel'}
+      />
     </div>
   );
 };

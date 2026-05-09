@@ -1,6 +1,6 @@
 {
-  "name": "Remix: Family Birthday 001",
-  "description": "A heartwarmng app to track and celebrate family birthdays with interactive elements and countdowns.",
+  "name": "Family Celebration: The Ultimate Memory Site",
+  "description": "A feature-rich, full-stack website built with React, CSS5 (Tailwind), and TypeScript to track birthdays, share memories, and backup family data.",
   "requestFramePermissions": [
     "geolocation"
   ],
