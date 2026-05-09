@@ -79,6 +79,20 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["url", "createdAt"]
+    },
+    "StoryData": {
+      "title": "Story Data",
+      "description": "Content for the 'Our Story' section",
+      "type": "object",
+      "properties": {
+        "titleBN": { "type": "string" },
+        "titleEN": { "type": "string" },
+        "content1BN": { "type": "string" },
+        "content1EN": { "type": "string" },
+        "content2BN": { "type": "string" },
+        "content2EN": { "type": "string" }
+      },
+      "required": ["titleBN", "titleEN", "content1BN", "content1EN", "content2BN", "content2EN"]
     }
   },
   "firestore": {
@@ -89,6 +103,10 @@
     "/users/{userId}/milestones/{eventId}": {
       "schema": "CountdownEvent",
       "description": "Custom milestones and birth dates added by the user"
+    },
+    "/users/{userId}/settings/story": {
+      "schema": "StoryData",
+      "description": "Customizable 'Our Story' content for the user"
     },
     "/users/{userId}/moments/{momentId}": {
       "schema": "Moment",

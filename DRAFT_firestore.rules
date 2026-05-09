@@ -1,0 +1,155 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Phase 4: Validation Blueprints
+
+    function isValidFamilyMember(data) {
+      return data.keys().hasAll(['id', 'name', 'relation', 'birthday', 'createdAt']) 
+        && data.keys().size() == 5
+        && data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() <= 100
+        && data.relation is string && data.relation.size() <= 50
+        && data.birthday is string && data.birthday.size() == 10
+        && data.createdAt is number;
+    }
+
+    function isValidMilestone(data) {
+      return data.keys().hasAll(['id', 'name', 'date', 'icon'])
+        && data.keys().size() >= 4 && data.keys().size() <= 5
+        && data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() <= 100
+        && data.date is string && data.date.size() == 10
+        && data.icon is string && data.icon.size() <= 50
+        && (!data.keys().contains('isMain') || data.isMain is bool);
+    }
+
+    function isValidMoment(data) {
+      return data.keys().hasAll(['id', 'date', 'titleBN', 'titleEN', 'descriptionBN', 'descriptionEN', 'iconId', 'color'])
+        && data.keys().size() == 8
+        && data.id is string && data.id.size() <= 128
+        && data.date is string && data.date.size() == 10
+        && data.titleBN is string && data.titleBN.size() <= 200
+        && data.titleEN is string && data.titleEN.size() <= 200
+        && data.descriptionBN is string && data.descriptionBN.size() <= 2000
+        && data.descriptionEN is string && data.descriptionEN.size() <= 2000
+        && data.iconId is string && data.iconId.size() <= 50
+        && data.color is string && data.color.size() <= 50;
+    }
+
+    function isValidAlbum(data) {
+      return data.keys().hasAll(['name', 'createdAt', 'userId'])
+        && data.keys().size() >= 3 && data.keys().size() <= 4
+        && data.name is string && data.name.size() <= 100
+        && data.createdAt is string
+        && data.userId == request.auth.uid
+        && (!data.keys().contains('description') || data.description is string && data.description.size() <= 500);
+    }
+
+    function isValidPhoto(data) {
+      return data.keys().hasAll(['url', 'createdAt'])
+        && data.keys().size() >= 2 && data.keys().size() <= 4
+        && data.url is string && data.url.size() <= 1000
+        && data.createdAt is string
+        && (!data.keys().contains('caption') || data.caption is string && data.caption.size() <= 500)
+        && (!data.keys().contains('id') || data.id is string && data.id.size() <= 128);
+    }
+
+    function isValidStory(data) {
+      return data.keys().hasAll(['titleBN', 'titleEN', 'content1BN', 'content1EN', 'content2BN', 'content2EN'])
+        && data.keys().size() <= 7
+        && data.titleBN is string && data.titleBN.size() <= 200
+        && data.titleEN is string && data.titleEN.size() <= 200
+        && data.content1BN is string && data.content1BN.size() <= 5000
+        && data.content1EN is string && data.content1EN.size() <= 5000
+        && data.content2BN is string && data.content2BN.size() <= 5000
+        && data.content2EN is string && data.content2EN.size() <= 5000;
+    }
+
+    function isValidSlideshowImage(data) {
+      return data.keys().hasAll(['url', 'createdAt', 'userId'])
+        && data.keys().size() >= 3 && data.keys().size() <= 4
+        && data.url is string && data.url.size() <= 1000
+        && data.createdAt is string
+        && data.userId == request.auth.uid
+        && (!data.keys().contains('caption') || data.caption is string && data.caption.size() <= 500);
+    }
+
+    // Match Blocks
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      
+      match /family/{memberId} {
+        allow read, list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(memberId) && isValidFamilyMember(incoming());
+        allow update: if isOwner(userId) && isValidFamilyMember(incoming());
+        allow delete: if isOwner(userId);
+      }
+
+      match /milestones/{eventId} {
+        allow read, list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(eventId) && isValidMilestone(incoming());
+        allow update: if isOwner(userId) && isValidMilestone(incoming());
+        allow delete: if isOwner(userId);
+      }
+
+      match /settings/story {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId) && isValidStory(incoming());
+      }
+
+      match /moments/{momentId} {
+        allow read, list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(momentId) && isValidMoment(incoming());
+        allow update: if isOwner(userId) && isValidMoment(incoming());
+        allow delete: if isOwner(userId);
+      }
+
+      match /albums/{albumId} {
+        allow read, list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(albumId) && isValidAlbum(incoming());
+        allow update: if isOwner(userId) && isValidAlbum(incoming());
+        allow delete: if isOwner(userId);
+
+        match /photos/{photoId} {
+          allow read, list: if isOwner(userId);
+          allow create: if isOwner(userId) && isValidId(photoId) && isValidPhoto(incoming());
+          allow update: if isOwner(userId) && isValidPhoto(incoming());
+          allow delete: if isOwner(userId);
+        }
+      }
+    }
+
+    match /slideshow/{imageId} {
+      allow read, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(imageId) && isValidSlideshowImage(incoming());
+      allow update: if isSignedIn() && existing().userId == request.auth.uid && isValidSlideshowImage(incoming());
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+    }
+  }
+}

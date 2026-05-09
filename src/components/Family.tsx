@@ -454,92 +454,94 @@ export const Family: React.FC<{ lang: 'bn' | 'en', defaultViewMode?: 'grid' | 'm
       </div>
 
       {/* Form Card */}
-      <motion.div 
-        initial={{ opacity: 0, y: 40 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white/[0.02] backdrop-blur-3xl rounded-[60px] p-12 md:p-24 mb-24 relative overflow-hidden group shadow-[0_64px_128px_-32px_rgba(0,0,0,0.8)] border border-white/10"
-      >
-        <div className="absolute -top-24 -right-24 p-24 text-[#c5a059]/[0.02] pointer-events-none group-hover:scale-125 transition-transform duration-[2000ms] ease-out">
-          <Heart size={400} strokeWidth={0.5} />
-        </div>
-
-        <div className="relative z-10">
-          <div className="text-center mb-16">
-            <h3 className="font-display text-5xl md:text-7xl text-white mb-6 italic font-bold tracking-tight">
-              {t.formTitle}
-            </h3>
-            <div className="w-24 h-px bg-[#c5a059]/30 mx-auto rounded-full shadow-[0_0_10px_#c5a059]" />
+      {auth.currentUser && (
+        <motion.div 
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white/[0.02] backdrop-blur-3xl rounded-[60px] p-12 md:p-24 mb-24 relative overflow-hidden group shadow-[0_64px_128px_-32px_rgba(0,0,0,0.8)] border border-white/10"
+        >
+          <div className="absolute -top-24 -right-24 p-24 text-[#c5a059]/[0.02] pointer-events-none group-hover:scale-125 transition-transform duration-[2000ms] ease-out">
+            <Heart size={400} strokeWidth={0.5} />
           </div>
 
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-12">
-            <div className="space-y-4">
-              <label className="luxury-text flex items-center gap-3">
-                <Users size={14} className="text-[#c5a059]" /> {t.lblName}
-              </label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={e => setFormData({ ...formData, name: e.target.value })}
-                className="w-full bg-white/[0.02] border border-white/10 rounded-2xl px-8 py-6 text-white text-xl placeholder-white/10 focus:outline-none focus:ring-2 focus:ring-[#c5a059]/50 transition-all font-display italic font-medium"
-                placeholder="Full Name"
-              />
+          <div className="relative z-10">
+            <div className="text-center mb-16">
+              <h3 className="font-display text-5xl md:text-7xl text-white mb-6 italic font-bold tracking-tight">
+                {t.formTitle}
+              </h3>
+              <div className="w-24 h-px bg-[#c5a059]/30 mx-auto rounded-full shadow-[0_0_10px_#c5a059]" />
             </div>
 
-            <div className="space-y-4">
-              <label className="luxury-text flex items-center gap-3">
-                <Star size={14} className="text-[#c5a059]" /> {t.lblRelation}
-              </label>
-              <div className="relative">
-                <select
-                  value={formData.relation}
-                  onChange={e => setFormData({ ...formData, relation: e.target.value })}
-                  className="w-full bg-white/[0.02] border border-white/10 rounded-2xl px-8 py-6 text-white text-xl focus:outline-none focus:ring-2 focus:ring-[#c5a059]/50 transition-all appearance-none cursor-pointer font-display italic font-medium"
-                >
-                  {relations.map(r => (
-                    <option key={r} value={r} className="bg-[#0f0a1a] text-white">
-                      {(t.relationMap as any)[r] || r}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-12">
+              <div className="space-y-4">
                 <label className="luxury-text flex items-center gap-3">
-                  <Calendar size={14} className="text-[#c5a059]" /> {t.lblBirthday}
+                  <Users size={14} className="text-[#c5a059]" /> {t.lblName}
                 </label>
-                <button 
-                  type="button"
-                  onClick={() => setDateInputType(dateInputType === 'picker' ? 'text' : 'picker')}
-                  className="luxury-text opacity-40 hover:opacity-100 transition-opacity text-[10px]"
-                >
-                  {dateInputType === 'picker' ? (lang === 'bn' ? 'ম্যানুয়াল' : 'Manual') : (lang === 'bn' ? 'পিকার' : 'Picker')}
-                </button>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={e => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full bg-white/[0.02] border border-white/10 rounded-2xl px-8 py-6 text-white text-xl placeholder-white/10 focus:outline-none focus:ring-2 focus:ring-[#c5a059]/50 transition-all font-display italic font-medium"
+                  placeholder="Full Name"
+                />
               </div>
-              <input
-                type={dateInputType === 'picker' ? 'date' : 'text'}
-                value={formData.birthday}
-                onChange={e => setFormData({ ...formData, birthday: e.target.value })}
-                placeholder={dateInputType === 'text' ? 'YYYY-MM-DD' : undefined}
-                className="w-full bg-white/[0.02] border border-white/10 rounded-2xl px-8 py-6 text-white text-xl focus:outline-none focus:ring-2 focus:ring-[#c5a059]/50 transition-all cursor-pointer font-display italic font-medium"
-              />
-            </div>
 
-            <div className="md:col-span-3 flex justify-center gap-8 mt-8">
-              <motion.button 
-                whileHover={{ y: -5, scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                type="submit" 
-                className="bg-white text-black px-12 py-6 rounded-2xl font-black text-xs uppercase tracking-[0.3em] shadow-2xl hover:bg-[#c5a059] transition-all flex items-center gap-4 premium-btn"
-              >
-                {editingId ? <Save size={18} /> : <Plus size={18} />}
-                {editingId ? t.btnUpdate : t.btnAdd}
-              </motion.button>
-            </div>
-          </form>
-        </div>
-      </motion.div>
+              <div className="space-y-4">
+                <label className="luxury-text flex items-center gap-3">
+                  <Star size={14} className="text-[#c5a059]" /> {t.lblRelation}
+                </label>
+                <div className="relative">
+                  <select
+                    value={formData.relation}
+                    onChange={e => setFormData({ ...formData, relation: e.target.value })}
+                    className="w-full bg-white/[0.02] border border-white/10 rounded-2xl px-8 py-6 text-white text-xl focus:outline-none focus:ring-2 focus:ring-[#c5a059]/50 transition-all appearance-none cursor-pointer font-display italic font-medium"
+                  >
+                    {relations.map(r => (
+                      <option key={r} value={r} className="bg-[#0f0a1a] text-white">
+                        {(t.relationMap as any)[r] || r}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <label className="luxury-text flex items-center gap-3">
+                    <Calendar size={14} className="text-[#c5a059]" /> {t.lblBirthday}
+                  </label>
+                  <button 
+                    type="button"
+                    onClick={() => setDateInputType(dateInputType === 'picker' ? 'text' : 'picker')}
+                    className="luxury-text opacity-40 hover:opacity-100 transition-opacity text-[10px]"
+                  >
+                    {dateInputType === 'picker' ? (lang === 'bn' ? 'ম্যানুয়াল' : 'Manual') : (lang === 'bn' ? 'পিকার' : 'Picker')}
+                  </button>
+                </div>
+                <input
+                  type={dateInputType === 'picker' ? 'date' : 'text'}
+                  value={formData.birthday}
+                  onChange={e => setFormData({ ...formData, birthday: e.target.value })}
+                  placeholder={dateInputType === 'text' ? 'YYYY-MM-DD' : undefined}
+                  className="w-full bg-white/[0.02] border border-white/10 rounded-2xl px-8 py-6 text-white text-xl focus:outline-none focus:ring-2 focus:ring-[#c5a059]/50 transition-all cursor-pointer font-display italic font-medium"
+                />
+              </div>
+
+              <div className="md:col-span-3 flex justify-center gap-8 mt-8">
+                <motion.button 
+                  whileHover={{ y: -5, scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  type="submit" 
+                  className="bg-white text-black px-12 py-6 rounded-2xl font-black text-xs uppercase tracking-[0.3em] shadow-2xl hover:bg-[#c5a059] transition-all flex items-center gap-4 premium-btn"
+                >
+                  {editingId ? <Save size={18} /> : <Plus size={18} />}
+                  {editingId ? t.btnUpdate : t.btnAdd}
+                </motion.button>
+              </div>
+            </form>
+          </div>
+        </motion.div>
+      )}
 
       {/* View Mode Switching / Monitoring Dashboard Option */}
       <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-12 px-2">
@@ -620,21 +622,23 @@ export const Family: React.FC<{ lang: 'bn' | 'en', defaultViewMode?: 'grid' | 'm
           </div>
 
           {/* Backup Buttons */}
-          <div className="flex gap-2">
-            <button 
-              onClick={exportBackup}
-              className="p-3 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-2xl transition-all border border-white/10 flex items-center gap-2"
-              title={lang === 'bn' ? 'ব্যাকআপ ডাউনলোড করুন' : 'Export Backup'}
-            >
-              <Download size={18} />
-              <span className="text-[10px] font-black uppercase tracking-widest">{lang === 'bn' ? 'ব্যাকআপ' : 'Backup'}</span>
-            </button>
-            <label className="p-3 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-2xl transition-all border border-white/10 flex items-center gap-2 cursor-pointer">
-              <UploadIcon size={18} />
-              <span className="text-[10px] font-black uppercase tracking-widest">{lang === 'bn' ? 'রিস্টোর' : 'Restore'}</span>
-              <input type="file" accept=".json" onChange={importBackup} className="hidden" />
-            </label>
-          </div>
+          {auth.currentUser && (
+            <div className="flex gap-2">
+              <button 
+                onClick={exportBackup}
+                className="p-3 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-2xl transition-all border border-white/10 flex items-center gap-2"
+                title={lang === 'bn' ? 'ব্যাকআপ ডাউনলোড করুন' : 'Export Backup'}
+              >
+                <Download size={18} />
+                <span className="text-[10px] font-black uppercase tracking-widest">{lang === 'bn' ? 'ব্যাকআপ' : 'Backup'}</span>
+              </button>
+              <label className="p-3 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-2xl transition-all border border-white/10 flex items-center gap-2 cursor-pointer">
+                <UploadIcon size={18} />
+                <span className="text-[10px] font-black uppercase tracking-widest">{lang === 'bn' ? 'রিস্টোর' : 'Restore'}</span>
+                <input type="file" accept=".json" onChange={importBackup} className="hidden" />
+              </label>
+            </div>
+          )}
       </div>
     </div>
 
@@ -848,20 +852,22 @@ export const Family: React.FC<{ lang: 'bn' | 'en', defaultViewMode?: 'grid' | 'm
                         <div className="text-3xl font-black text-yellow-500">{getAge(m.birthday)}</div>
                         <div className="text-[10px] font-black text-yellow-500/40 uppercase tracking-tighter">{t.age}</div>
                       </div>
-                      <div className="flex flex-col gap-2">
-                        <button 
-                          onClick={() => editMember(m)}
-                          className="w-12 h-12 rounded-2xl bg-white/5 hover:bg-emerald-500/20 hover:text-emerald-400 text-white/40 transition-all flex items-center justify-center border border-white/10"
-                        >
-                          <Edit2 size={18} />
-                        </button>
-                        <button 
-                          onClick={() => deleteMember(m.id)}
-                          className="w-12 h-12 rounded-2xl bg-white/5 hover:bg-rose-500/20 hover:text-rose-400 text-white/40 transition-all flex items-center justify-center border border-white/10"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
+                      {auth.currentUser && (
+                        <div className="flex flex-col gap-2">
+                          <button 
+                            onClick={() => editMember(m)}
+                            className="w-12 h-12 rounded-2xl bg-white/5 hover:bg-emerald-500/20 hover:text-emerald-400 text-white/40 transition-all flex items-center justify-center border border-white/10"
+                          >
+                            <Edit2 size={18} />
+                          </button>
+                          <button 
+                            onClick={() => deleteMember(m.id)}
+                            className="w-12 h-12 rounded-2xl bg-white/5 hover:bg-rose-500/20 hover:text-rose-400 text-white/40 transition-all flex items-center justify-center border border-white/10"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 );
@@ -930,20 +936,22 @@ export const Family: React.FC<{ lang: 'bn' | 'en', defaultViewMode?: 'grid' | 'm
                       </div>
                     </div>
 
-                    <div className="flex justify-center gap-3 opacity-0 group-hover:opacity-100 transition-all duration-500 transform translate-y-4 group-hover:translate-y-0">
-                      <button 
-                        onClick={() => editMember(m)}
-                        className="w-12 h-12 rounded-2xl bg-white/5 hover:bg-[#c5a059] hover:text-black transition-all flex items-center justify-center border border-white/10"
-                      >
-                        <Edit2 size={18} />
-                      </button>
-                      <button 
-                        onClick={() => deleteMember(m.id)}
-                        className="w-12 h-12 rounded-2xl bg-white/5 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center border border-white/10"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
+                    {auth.currentUser && (
+                      <div className="flex justify-center gap-3 opacity-0 group-hover:opacity-100 transition-all duration-500 transform translate-y-4 group-hover:translate-y-0">
+                        <button 
+                          onClick={() => editMember(m)}
+                          className="w-12 h-12 rounded-2xl bg-white/5 hover:bg-[#c5a059] hover:text-black transition-all flex items-center justify-center border border-white/10"
+                        >
+                          <Edit2 size={18} />
+                        </button>
+                        <button 
+                          onClick={() => deleteMember(m.id)}
+                          className="w-12 h-12 rounded-2xl bg-white/5 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center border border-white/10"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    )}
                   </motion.div>
                 );
               })

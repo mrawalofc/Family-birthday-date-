@@ -304,7 +304,7 @@ export const SlideshowManager: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
               <p className="text-[7px] text-white/40 uppercase font-black tracking-[0.2em]">{l.description}</p>
             </div>
           </div>
-          {!isAdding && (
+          {auth.currentUser && !isAdding && (
             <button
               onClick={() => setIsAdding(true)}
               className="bg-white text-black px-4 py-2.5 rounded-xl font-black uppercase tracking-widest text-[9px] shadow-lg hover:bg-pink-500 hover:text-white transition-all transform active:scale-90 flex items-center gap-1.5"
@@ -467,14 +467,16 @@ export const SlideshowManager: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
               </div>
             </div>
 
-            <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-20">
-              <button
-                onClick={() => handleDelete(img.id)}
-                className="w-9 h-9 bg-red-500/80 backdrop-blur-xl text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-all border border-white/10 shadow-lg"
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
+            {auth.currentUser && (
+              <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-20">
+                <button
+                  onClick={() => handleDelete(img.id)}
+                  className="w-9 h-9 bg-red-500/80 backdrop-blur-xl text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-all border border-white/10 shadow-lg"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            )}
           </motion.div>
         ))}
       </div>

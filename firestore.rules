@@ -85,20 +85,32 @@ service cloud.firestore {
 
     function isValidAlbumPhoto(data) {
       return data.keys().hasAll(['url', 'createdAt']) &&
-             (data.keys().size() >= 2 && data.keys().size() <= 3) &&
-             data.url is string && data.url.size() <= 1500000 && // Allowing large base64 strings
+             (data.keys().size() >= 2 && data.keys().size() <= 4) &&
+             data.url is string && data.url.size() <= 1500000 && 
              data.createdAt is string &&
-             (!data.keys().hasAny(['caption']) || (data.caption is string && data.caption.size() <= 500));
+             (!data.keys().hasAny(['caption']) || (data.caption is string && data.caption.size() <= 500)) &&
+             (!data.keys().hasAny(['id']) || isValidId(data.id));
     }
 
     function isValidSlideshowImage(data) {
       return data.keys().hasAll(['url', 'createdAt', 'userId', 'isPublic']) &&
              (data.keys().size() >= 4 && data.keys().size() <= 5) &&
-             data.url is string && data.url.size() <= 2000000 && // Base64 or long URLs
+             data.url is string && data.url.size() <= 2000000 &&
              data.userId == request.auth.uid &&
              data.createdAt is string &&
              data.isPublic == true &&
              (!data.keys().hasAny(['caption']) || (data.caption is string && data.caption.size() <= 200));
+    }
+
+    function isValidStory(data) {
+      return data.keys().hasAll(['titleBN', 'titleEN', 'content1BN', 'content1EN', 'content2BN', 'content2EN']) &&
+             data.keys().size() <= 7 &&
+             data.titleBN is string && data.titleBN.size() <= 200 &&
+             data.titleEN is string && data.titleEN.size() <= 200 &&
+             data.content1BN is string && data.content1BN.size() <= 5000 &&
+             data.content1EN is string && data.content1EN.size() <= 5000 &&
+             data.content2BN is string && data.content2BN.size() <= 5000 &&
+             data.content2EN is string && data.content2EN.size() <= 5000;
     }
 
     // --- Collections ---
@@ -111,7 +123,6 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      // Ensure path variable is valid
       function isOwner() {
         return isVerified() && request.auth.uid == userId && isValidId(userId);
       }
@@ -125,27 +136,32 @@ service cloud.firestore {
 
       match /milestones/{eventId} {
         allow list, get: if isOwner();
-        allow create: if isOwner() && isValidCountdownEvent(incoming());
+        allow create: if isOwner() && isValidId(eventId) && isValidCountdownEvent(incoming());
         allow update: if isOwner() && isValidCountdownEvent(incoming()) && incoming().id == existing().id;
         allow delete: if isOwner();
       }
 
       match /moments/{momentId} {
         allow list, get: if isOwner();
-        allow create: if isOwner() && isValidMoment(incoming());
+        allow create: if isOwner() && isValidId(momentId) && isValidMoment(incoming());
         allow update: if isOwner() && isValidMoment(incoming()) && incoming().id == existing().id;
         allow delete: if isOwner();
       }
 
+      match /settings/story {
+        allow read: if isOwner();
+        allow write: if isOwner() && isValidStory(incoming());
+      }
+
       match /albums/{albumId} {
         allow list, get: if isOwner();
-        allow create: if isOwner() && isValidAlbum(incoming());
+        allow create: if isOwner() && isValidId(albumId) && isValidAlbum(incoming());
         allow update: if isOwner() && isValidAlbum(incoming()) && incoming().userId == existing().userId;
         allow delete: if isOwner();
 
         match /photos/{photoId} {
           allow list, get: if isOwner();
-          allow create: if isOwner() && isValidAlbumPhoto(incoming());
+          allow create: if isOwner() && isValidId(photoId) && isValidAlbumPhoto(incoming());
           allow update: if isOwner() && isValidAlbumPhoto(incoming());
           allow delete: if isOwner();
         }

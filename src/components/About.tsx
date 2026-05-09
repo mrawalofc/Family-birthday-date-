@@ -109,22 +109,24 @@ export const About: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
     <div className="w-full max-w-4xl mx-auto py-24 px-6 relative">
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 bg-[#c5a059]/10 blur-[120px] rounded-full pointer-events-none" />
       
-      <div className="text-right mb-8">
-        <button 
-          onClick={() => {
-            sounds.play('click');
-            setIsEditing(!isEditing);
-          }}
-          className={`px-8 py-3 rounded-2xl flex items-center gap-3 ml-auto transition-all transform active:scale-95 ${
-            isEditing ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-white/5 text-[#c5a059] border border-white/10 hover:bg-white/10'
-          }`}
-        >
-          {isEditing ? <X size={18} /> : <Edit3 size={18} />}
-          <span className="font-black text-[11px] uppercase tracking-widest">
-            {isEditing ? (lang === 'bn' ? 'বাতিল' : 'Cancel') : (lang === 'bn' ? 'সম্পাদনা করুন' : 'Manual Edit')}
-          </span>
-        </button>
-      </div>
+      {auth.currentUser && (
+        <div className="text-right mb-8">
+          <button 
+            onClick={() => {
+              sounds.play('click');
+              setIsEditing(!isEditing);
+            }}
+            className={`px-8 py-3 rounded-2xl flex items-center gap-3 ml-auto transition-all transform active:scale-95 ${
+              isEditing ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-white/5 text-[#c5a059] border border-white/10 hover:bg-white/10'
+            }`}
+          >
+            {isEditing ? <X size={18} /> : <Edit3 size={18} />}
+            <span className="font-black text-[11px] uppercase tracking-widest">
+              {isEditing ? (lang === 'bn' ? 'বাতিল' : 'Cancel') : (lang === 'bn' ? 'সম্পাদনা করুন' : 'Manual Edit')}
+            </span>
+          </button>
+        </div>
+      )}
 
       <AnimatePresence mode="wait">
         {!isEditing ? (

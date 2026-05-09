@@ -144,21 +144,25 @@ const PhotoItem: React.FC<{
           >
             <Sparkles size={18} />
           </button>
-          <button 
-            onClick={(e) => {
-              e.stopPropagation();
-              onQuickEdit(photo.caption || '');
-            }}
-            className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-3xl text-white flex items-center justify-center hover:bg-white/20 transition-all border border-white/10 shadow-2xl"
-          >
-            <Edit2 size={18} />
-          </button>
-          <button 
-            onClick={onDelete}
-            className="w-12 h-12 rounded-2xl bg-rose-500/80 backdrop-blur-3xl text-white flex items-center justify-center hover:bg-rose-600 transition-all border border-white/10 shadow-2xl"
-          >
-            <Trash2 size={18} />
-          </button>
+          {auth.currentUser && (
+            <>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onQuickEdit(photo.caption || '');
+                }}
+                className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-3xl text-white flex items-center justify-center hover:bg-white/20 transition-all border border-white/10 shadow-2xl"
+              >
+                <Edit2 size={18} />
+              </button>
+              <button 
+                onClick={onDelete}
+                className="w-12 h-12 rounded-2xl bg-rose-500/80 backdrop-blur-3xl text-white flex items-center justify-center hover:bg-rose-600 transition-all border border-white/10 shadow-2xl"
+              >
+                <Trash2 size={18} />
+              </button>
+            </>
+          )}
         </div>
       </motion.div>
   );
@@ -897,21 +901,23 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
         </div>
 
         {/* Local Backup Controls */}
-        <div className="flex gap-3">
-          <button 
-            onClick={exportBackup}
-            className="p-3 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-2xl transition-all border border-white/10 flex items-center gap-2"
-            title={lang === 'bn' ? 'ব্যাকআপ ডাউনলোড করুন' : 'Export Gallery Backup'}
-          >
-            <Download size={18} />
-            <span className="text-[10px] font-black uppercase tracking-widest">{lang === 'bn' ? 'ব্যাকআপ' : 'Backup'}</span>
-          </button>
-          <label className="p-3 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-2xl transition-all border border-white/10 flex items-center gap-2 cursor-pointer">
-            <UploadIcon size={18} />
-            <span className="text-[10px] font-black uppercase tracking-widest">{lang === 'bn' ? 'রিস্টোর' : 'Restore'}</span>
-            <input type="file" accept=".json" onChange={importBackup} className="hidden" />
-          </label>
-        </div>
+        {auth.currentUser && (
+          <div className="flex gap-3">
+            <button 
+              onClick={exportBackup}
+              className="p-3 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-2xl transition-all border border-white/10 flex items-center gap-2"
+              title={lang === 'bn' ? 'ব্যাকআপ ডাউনলোড করুন' : 'Export Gallery Backup'}
+            >
+              <Download size={18} />
+              <span className="text-[10px] font-black uppercase tracking-widest">{lang === 'bn' ? 'ব্যাকআপ' : 'Backup'}</span>
+            </button>
+            <label className="p-3 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-2xl transition-all border border-white/10 flex items-center gap-2 cursor-pointer">
+              <UploadIcon size={18} />
+              <span className="text-[10px] font-black uppercase tracking-widest">{lang === 'bn' ? 'রিস্টোর' : 'Restore'}</span>
+              <input type="file" accept=".json" onChange={importBackup} className="hidden" />
+            </label>
+          </div>
+        )}
       </div>
 
       <AnimatePresence mode="wait">
@@ -981,17 +987,19 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
           >
             {!selectedAlbum ? (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setIsCreatingAlbum(true)}
-                  className="aspect-square rounded-[38px] border border-white/10 flex flex-col items-center justify-center gap-4 text-white/30 hover:text-white/60 hover:bg-white/[0.03] transition-all bg-[#1c1c1e] shadow-xl"
-                >
-                  <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center border border-white/5 shadow-inner">
-                    <FolderPlus size={32} />
-                  </div>
-                  <span className="font-bold tracking-tight text-sm">{l.addAlbum}</span>
-                </motion.button>
+                {auth.currentUser && (
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setIsCreatingAlbum(true)}
+                    className="aspect-square rounded-[38px] border border-white/10 flex flex-col items-center justify-center gap-4 text-white/30 hover:text-white/60 hover:bg-white/[0.03] transition-all bg-[#1c1c1e] shadow-xl"
+                  >
+                    <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center border border-white/5 shadow-inner">
+                      <FolderPlus size={32} />
+                    </div>
+                    <span className="font-bold tracking-tight text-sm">{l.addAlbum}</span>
+                  </motion.button>
+                )}
 
                 {albums.map((album, index) => (
                   <motion.div
@@ -1022,7 +1030,7 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
 
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-7 z-20 translate-y-2 group-hover:translate-y-0 transition-all duration-500">
                       <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <h4 className="text-xl font-bold text-white truncate tracking-tight mb-0.5">{album.name}</h4>
                           <div className="flex flex-col gap-1">
                             <p className="text-[10px] text-white/40 font-medium tracking-wide">{album.photos.length} Photos</p>
@@ -1031,12 +1039,14 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
                             )}
                           </div>
                         </div>
-                        <button 
-                          onClick={(e) => deleteAlbum(album.id, e)}
-                          className="w-9 h-9 rounded-full bg-white/5 backdrop-blur-xl text-white/20 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all border border-white/5"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        {auth.currentUser && (
+                          <button 
+                            onClick={(e) => deleteAlbum(album.id, e)}
+                            className="w-9 h-9 rounded-full bg-white/5 backdrop-blur-xl text-white/20 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all border border-white/5"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </motion.div>
@@ -1074,13 +1084,15 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
                       )}
                     </button>
                   ))}
-                  <button
-                    onClick={() => setIsCreatingAlbum(true)}
-                    className="shrink-0 flex items-center gap-2 px-5 py-3 rounded-2xl border-2 border-dashed border-white/20 text-white/40 hover:text-white hover:border-white/40 transition-all whitespace-nowrap bg-white/5"
-                  >
-                    <Plus size={16} />
-                    <span className="font-bold text-sm">{l.addAlbum}</span>
-                  </button>
+                  {auth.currentUser && (
+                    <button
+                      onClick={() => setIsCreatingAlbum(true)}
+                      className="shrink-0 flex items-center gap-2 px-5 py-3 rounded-2xl border-2 border-dashed border-white/20 text-white/40 hover:text-white hover:border-white/40 transition-all whitespace-nowrap bg-white/5"
+                    >
+                      <Plus size={16} />
+                      <span className="font-bold text-sm">{l.addAlbum}</span>
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white/[0.02] p-10 rounded-[50px] border border-white/10 backdrop-blur-3xl shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)] relative overflow-hidden group">
@@ -1118,13 +1130,15 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
                       </button>
                     </div>
 
-                    <button
-                      onClick={() => document.getElementById('photo-upload')?.click()}
-                      className="bg-white text-black px-8 py-4 rounded-2xl flex items-center justify-center gap-3 font-black tracking-tight text-[12px] shadow-2xl hover:bg-[#c5a059] hover:text-black transition-all transform active:scale-95 premium-btn"
-                    >
-                      <Upload size={18} />
-                      {l.uploadBtn}
-                    </button>
+                    {auth.currentUser && (
+                      <button
+                        onClick={() => document.getElementById('photo-upload')?.click()}
+                        className="bg-white text-black px-8 py-4 rounded-2xl flex items-center justify-center gap-3 font-black tracking-tight text-[12px] shadow-2xl hover:bg-[#c5a059] hover:text-black transition-all transform active:scale-95 premium-btn"
+                      >
+                        <Upload size={18} />
+                        {l.uploadBtn}
+                      </button>
+                    )}
                   </div>
                   <input id="photo-upload" type="file" multiple accept="image/*" className="hidden" onChange={handlePhotoUpload} />
                 </div>
@@ -1136,15 +1150,17 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
                     </div>
                     <div className="text-center">
                       <p className="text-2xl font-bold mb-2 tracking-tight">{l.emptyAlbum}</p>
-                      <p className="text-white/40 text-sm">{lang === 'bn' ? 'শুরু করতে আপনার প্রথম ছবি আপলোড করুন' : 'Upload your first photo to get started'}</p>
+                      <p className="text-white/40 text-sm">{lang === 'bn' ? (auth.currentUser ? 'শুরু করতে আপনার প্রথম ছবি আপলোড করুন' : 'এই অ্যালবামটি এখন খালি আছে') : (auth.currentUser ? 'Upload your first photo to get started' : 'This album is currently empty')}</p>
                     </div>
-                    <button
-                      onClick={() => document.getElementById('photo-upload')?.click()}
-                      className="bg-pink-500 hover:bg-pink-600 text-white px-12 py-5 rounded-[30px] flex items-center justify-center gap-4 font-black shadow-2xl shadow-pink-500/30 transition-all hover:scale-105 active:scale-95"
-                    >
-                      <Plus size={24} />
-                      {l.uploadBtn}
-                    </button>
+                    {auth.currentUser && (
+                      <button
+                        onClick={() => document.getElementById('photo-upload')?.click()}
+                        className="bg-pink-500 hover:bg-pink-600 text-white px-12 py-5 rounded-[30px] flex items-center justify-center gap-4 font-black shadow-2xl shadow-pink-500/30 transition-all hover:scale-105 active:scale-95"
+                      >
+                        <Plus size={24} />
+                        {l.uploadBtn}
+                      </button>
+                    )}
                   </div>
                 ) : (
                   viewMode === 'masonry' ? (
@@ -1349,24 +1365,30 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
                       <div className="w-1.5 h-1.5 rounded-full bg-pink-500 animate-pulse" />
                       <p className="text-white/40 text-[9px] uppercase tracking-[0.4em] font-black">Memory {selectedPhotoIndex + 1} of {selectedAlbum.photos.length}</p>
                     </div>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={editingCaption}
-                        onChange={(e) => setEditingCaption(e.target.value)}
-                        placeholder={l.captionPlaceholder}
-                        className="w-full bg-white/5 border border-white/10 focus:border-pink-500/50 focus:bg-white/10 px-5 py-3 text-base text-white font-medium outline-none transition-all placeholder:text-white/10 rounded-[16px]"
-                      />
-                      <Edit2 size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/10 group-focus-within/panel:text-pink-500/50 transition-colors" />
-                    </div>
+                    {auth.currentUser ? (
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={editingCaption}
+                          onChange={(e) => setEditingCaption(e.target.value)}
+                          placeholder={l.captionPlaceholder}
+                          className="w-full bg-white/5 border border-white/10 focus:border-pink-500/50 focus:bg-white/10 px-5 py-3 text-base text-white font-medium outline-none transition-all placeholder:text-white/10 rounded-[16px]"
+                        />
+                        <Edit2 size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/10 group-focus-within/panel:text-pink-500/50 transition-colors" />
+                      </div>
+                    ) : (
+                      <p className="text-white text-lg font-serif italic">{editingCaption || (lang === 'bn' ? 'স্মৃতি' : 'Beautiful Memory')}</p>
+                    )}
                   </div>
-                  <button 
-                    onClick={saveCaption}
-                    className="shrink-0 w-full md:w-auto bg-white text-black px-8 py-3 rounded-[16px] font-black uppercase tracking-widest text-[10px] shadow-2xl hover:bg-pink-500 hover:text-white transition-all transform active:scale-95 flex items-center justify-center gap-2.5 group/save"
-                  >
-                    <Check size={16} className="group-hover:scale-125 transition-transform" />
-                    {l.saveCaption}
-                  </button>
+                  {auth.currentUser && (
+                    <button 
+                      onClick={saveCaption}
+                      className="shrink-0 w-full md:w-auto bg-white text-black px-8 py-3 rounded-[16px] font-black uppercase tracking-widest text-[10px] shadow-2xl hover:bg-pink-500 hover:text-white transition-all transform active:scale-95 flex items-center justify-center gap-2.5 group/save"
+                    >
+                      <Check size={16} className="group-hover:scale-125 transition-transform" />
+                      {l.saveCaption}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

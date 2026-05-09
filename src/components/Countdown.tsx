@@ -395,15 +395,17 @@ export const Countdown: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
             </motion.button>
           )}
 
-          <motion.button 
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsEditing(!isEditing)}
-            className="flex items-center gap-2 px-6 py-2.5 bg-white/5 hover:bg-white/10 text-white/80 hover:text-white rounded-full transition-all border border-white/10 backdrop-blur-xl shadow-lg group"
-          >
-            <Settings size={18} className="group-hover:rotate-90 transition-transform duration-500" />
-            <span className="text-xs font-bold uppercase tracking-widest">{t.editDates}</span>
-          </motion.button>
+          {auth.currentUser && (
+            <motion.button 
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setIsEditing(!isEditing)}
+              className="flex items-center gap-2 px-6 py-2.5 bg-white/5 hover:bg-white/10 text-white/80 hover:text-white rounded-full transition-all border border-white/10 backdrop-blur-xl shadow-lg group"
+            >
+              <Settings size={18} className="group-hover:rotate-90 transition-transform duration-500" />
+              <span className="text-xs font-bold uppercase tracking-widest">{t.editDates}</span>
+            </motion.button>
+          )}
         </div>
 
         <AnimatePresence>

@@ -345,38 +345,40 @@ export const Moments: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
           {l.subtitle}
         </motion.p>
         
-        <div className="mt-12 flex justify-center gap-4">
-          {syncStatus !== 'idle' && (
-            <div className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest border backdrop-blur-xl ${
-              syncStatus === 'synced' ? 'bg-black/40 text-emerald-400 border-emerald-500/20' : 
-              syncStatus === 'syncing' ? 'bg-black/40 text-[#c5a059] border-[#c5a059]/20' : 'bg-black/40 text-rose-400 border-rose-500/20'
-            }`}>
-              {syncStatus === 'synced' ? <Cloud size={14} /> : syncStatus === 'syncing' ? <RefreshCw size={14} className="animate-spin text-[#c5a059]" /> : <CloudOff size={14} />}
-              {syncStatus}
-            </div>
-          )}
-          <button 
-            onClick={handleAdd}
-            className="inline-flex items-center gap-2 bg-[#c5a059] hover:bg-[#b08e4a] text-black px-8 py-4 rounded-full font-black text-xs uppercase tracking-widest transition-all shadow-xl hover:scale-105 active:scale-95"
-          >
-            <Plus size={20} />
-            {l.add}
-          </button>
-          
-          <div className="flex gap-2">
+        {auth.currentUser && (
+          <div className="mt-12 flex justify-center gap-4">
+            {syncStatus !== 'idle' && (
+              <div className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest border backdrop-blur-xl ${
+                syncStatus === 'synced' ? 'bg-black/40 text-emerald-400 border-emerald-500/20' : 
+                syncStatus === 'syncing' ? 'bg-black/40 text-[#c5a059] border-[#c5a059]/20' : 'bg-black/40 text-rose-400 border-rose-500/20'
+              }`}>
+                {syncStatus === 'synced' ? <Cloud size={14} /> : syncStatus === 'syncing' ? <RefreshCw size={14} className="animate-spin text-[#c5a059]" /> : <CloudOff size={14} />}
+                {syncStatus}
+              </div>
+            )}
             <button 
-              onClick={exportBackup}
-              className="p-4 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-full transition-all border border-white/10 flex items-center gap-2"
-              title={lang === 'bn' ? 'ব্যাকআপ ডাউনলোড করুন' : 'Export Moments'}
+              onClick={handleAdd}
+              className="inline-flex items-center gap-2 bg-[#c5a059] hover:bg-[#b08e4a] text-black px-8 py-4 rounded-full font-black text-xs uppercase tracking-widest transition-all shadow-xl hover:scale-105 active:scale-95"
             >
-              <Download size={18} />
+              <Plus size={20} />
+              {l.add}
             </button>
-            <label className="p-4 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-full transition-all border border-white/10 flex items-center gap-2 cursor-pointer">
-              <UploadIcon size={18} />
-              <input type="file" accept=".json" onChange={importBackup} className="hidden" />
-            </label>
+            
+            <div className="flex gap-2">
+              <button 
+                onClick={exportBackup}
+                className="p-4 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-full transition-all border border-white/10 flex items-center gap-2"
+                title={lang === 'bn' ? 'ব্যাকআপ ডাউনলোড করুন' : 'Export Moments'}
+              >
+                <Download size={18} />
+              </button>
+              <label className="p-4 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-full transition-all border border-white/10 flex items-center gap-2 cursor-pointer">
+                <UploadIcon size={18} />
+                <input type="file" accept=".json" onChange={importBackup} className="hidden" />
+              </label>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="relative">
@@ -402,81 +404,83 @@ export const Moments: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
                   <div className={`absolute inset-0 bg-gradient-to-br ${moment.color} opacity-[0.02] group-hover:opacity-[0.05] transition-opacity pointer-events-none`} />
                   <div className={`absolute top-0 ${i % 2 === 0 ? 'right-0' : 'left-0'} w-40 h-1 bg-gradient-to-r ${moment.color} group-hover:w-full transition-all duration-1000`} />
                   
-                  <div className={`flex items-center gap-4 mb-8 ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
-                    <span 
-                      className="luxury-text text-[10px] text-[#c5a059] bg-[#c5a059]/10 px-6 py-2 rounded-full border border-[#c5a059]/20 cursor-pointer hover:bg-[#c5a059]/20 transition-all shadow-lg"
-                      onClick={() => startInlineEdit(moment.id, 'date', moment.date)}
+                    <div className={`flex items-center gap-4 mb-8 ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
+                      <span 
+                        className={`luxury-text text-[10px] text-[#c5a059] bg-[#c5a059]/10 px-6 py-2 rounded-full border border-[#c5a059]/20 transition-all shadow-lg ${auth.currentUser ? 'cursor-pointer hover:bg-[#c5a059]/20' : ''}`}
+                        onClick={() => auth.currentUser && startInlineEdit(moment.id, 'date', moment.date)}
+                      >
+                        {inlineEdit?.id === moment.id && inlineEdit.field === 'date' ? (
+                          <input
+                            autoFocus
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onBlur={() => handleInlineSave(moment.id, 'date')}
+                            onKeyDown={(e) => e.key === 'Enter' && handleInlineSave(moment.id, 'date')}
+                            className="bg-transparent border-none outline-none text-[#c5a059] w-32 font-bold"
+                          />
+                        ) : moment.date}
+                      </span>
+                      {auth.currentUser && (
+                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-500 transform translate-y-2 group-hover:translate-y-0">
+                          <button 
+                            onClick={() => handleEdit(moment)} 
+                            className="w-10 h-10 rounded-xl bg-white/5 hover:bg-[#c5a059] hover:text-black transition-all flex items-center justify-center border border-white/10"
+                            title={l.edit}
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button 
+                            onClick={(e) => handleDelete(moment.id, e)} 
+                            className="w-10 h-10 rounded-xl bg-white/5 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center border border-white/10"
+                            title={l.delete}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div 
+                      className={`${auth.currentUser ? 'cursor-pointer group/inline' : ''} mb-6`}
+                      onClick={() => auth.currentUser && startInlineEdit(moment.id, lang === 'bn' ? 'titleBN' : 'titleEN', lang === 'bn' ? moment.titleBN : moment.titleEN)}
                     >
-                      {inlineEdit?.id === moment.id && inlineEdit.field === 'date' ? (
+                      {inlineEdit?.id === moment.id && (inlineEdit.field === 'titleBN' || inlineEdit.field === 'titleEN') ? (
                         <input
                           autoFocus
                           value={editValue}
                           onChange={(e) => setEditValue(e.target.value)}
-                          onBlur={() => handleInlineSave(moment.id, 'date')}
-                          onKeyDown={(e) => e.key === 'Enter' && handleInlineSave(moment.id, 'date')}
-                          className="bg-transparent border-none outline-none text-[#c5a059] w-32 font-bold"
+                          onBlur={() => handleInlineSave(moment.id, inlineEdit.field)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleInlineSave(moment.id, inlineEdit.field)}
+                          className="w-full bg-white/5 border-b-2 border-[#c5a059] font-serif text-4xl md:text-5xl text-white outline-none px-6 py-4 rounded-t-3xl shadow-inner italic"
                         />
-                      ) : moment.date}
-                    </span>
-                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-500 transform translate-y-2 group-hover:translate-y-0">
-                      <button 
-                        onClick={() => handleEdit(moment)} 
-                        className="w-10 h-10 rounded-xl bg-white/5 hover:bg-[#c5a059] hover:text-black transition-all flex items-center justify-center border border-white/10"
-                        title={l.edit}
-                      >
-                        <Edit2 size={14} />
-                      </button>
-                      <button 
-                        onClick={(e) => handleDelete(moment.id, e)} 
-                        className="w-10 h-10 rounded-xl bg-white/5 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center border border-white/10"
-                        title={l.delete}
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      ) : (
+                        <h3 className="font-display text-4xl md:text-5xl text-white italic font-bold tracking-tight group-hover:text-[#c5a059] transition-colors duration-500">
+                          {lang === 'bn' ? moment.titleBN : moment.titleEN}
+                        </h3>
+                      )}
                     </div>
-                  </div>
-                  
-                  <div 
-                    className="cursor-pointer group/inline mb-6"
-                    onClick={() => startInlineEdit(moment.id, lang === 'bn' ? 'titleBN' : 'titleEN', lang === 'bn' ? moment.titleBN : moment.titleEN)}
-                  >
-                    {inlineEdit?.id === moment.id && (inlineEdit.field === 'titleBN' || inlineEdit.field === 'titleEN') ? (
-                      <input
-                        autoFocus
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onBlur={() => handleInlineSave(moment.id, inlineEdit.field)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleInlineSave(moment.id, inlineEdit.field)}
-                        className="w-full bg-white/5 border-b-2 border-[#c5a059] font-serif text-4xl md:text-5xl text-white outline-none px-6 py-4 rounded-t-3xl shadow-inner italic"
-                      />
-                    ) : (
-                      <h3 className="font-display text-4xl md:text-5xl text-white italic font-bold tracking-tight group-hover:text-[#c5a059] transition-colors duration-500">
-                        {lang === 'bn' ? moment.titleBN : moment.titleEN}
-                      </h3>
-                    )}
-                  </div>
-                  
-                  <div
-                    className="cursor-pointer group/inline"
-                    onClick={() => startInlineEdit(moment.id, lang === 'bn' ? 'descriptionBN' : 'descriptionEN', lang === 'bn' ? moment.descriptionBN : moment.descriptionEN)}
-                  >
-                    {inlineEdit?.id === moment.id && (inlineEdit.field === 'descriptionBN' || inlineEdit.field === 'descriptionEN') ? (
-                      <textarea
-                        autoFocus
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onBlur={() => handleInlineSave(moment.id, inlineEdit.field)}
-                        rows={3}
-                        className="w-full bg-white/5 border-b-2 border-[#c5a059] text-white/90 text-xl leading-relaxed italic font-light outline-none p-8 rounded-t-3xl shadow-inner resize-none font-serif"
-                      />
-                    ) : (
-                      <div className={`flex items-start gap-4 ${i % 2 === 0 ? 'flex-row-reverse' : 'flex-row'}`}>
-                        <p className="text-white/60 text-xl leading-relaxed italic font-serif flex-1">
-                          {lang === 'bn' ? moment.descriptionBN : moment.descriptionEN}
-                        </p>
-                      </div>
-                    )}
-                  </div>
+                    
+                    <div
+                      className={`${auth.currentUser ? 'cursor-pointer group/inline' : ''}`}
+                      onClick={() => auth.currentUser && startInlineEdit(moment.id, lang === 'bn' ? 'descriptionBN' : 'descriptionEN', lang === 'bn' ? moment.descriptionBN : moment.descriptionEN)}
+                    >
+                      {inlineEdit?.id === moment.id && (inlineEdit.field === 'descriptionBN' || inlineEdit.field === 'descriptionEN') ? (
+                        <textarea
+                          autoFocus
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onBlur={() => handleInlineSave(moment.id, inlineEdit.field)}
+                          rows={3}
+                          className="w-full bg-white/5 border-b-2 border-[#c5a059] text-white/90 text-xl leading-relaxed italic font-light outline-none p-8 rounded-t-3xl shadow-inner resize-none font-serif"
+                        />
+                      ) : (
+                        <div className={`flex items-start gap-4 ${i % 2 === 0 ? 'flex-row-reverse' : 'flex-row'}`}>
+                          <p className="text-white/60 text-xl leading-relaxed italic font-serif flex-1">
+                            {lang === 'bn' ? moment.descriptionBN : moment.descriptionEN}
+                          </p>
+                        </div>
+                      )}
+                    </div>
                 </motion.div>
               </div>
 
@@ -501,42 +505,44 @@ export const Moments: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
           ))}
 
           {/* Add Moment Card at the end of the timeline */}
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className={`flex flex-col md:flex-row items-center gap-12 relative ${moments.length % 2 === 0 ? 'md:flex-row' : 'md:flex-row-reverse'}`}
-          >
-            <div className="flex-1 w-full">
-              <button 
-                onClick={handleAdd}
-                className="w-full group relative bg-white/5 backdrop-blur-2xl rounded-[40px] p-12 border-2 border-dashed border-white/10 hover:border-pink-500/50 transition-all flex flex-col items-center justify-center gap-4 hover:bg-white/[0.08]"
-              >
-                <div className="w-16 h-16 rounded-full bg-pink-500/10 flex items-center justify-center text-pink-500 group-hover:scale-110 group-hover:bg-pink-500 group-hover:text-white transition-all duration-500 shadow-lg">
-                  <Plus size={32} />
-                </div>
-                <div className="text-center">
-                  <span className="block text-2xl font-serif text-white/40 group-hover:text-white transition-colors mb-1">
-                    {l.add}
-                  </span>
-                  <p className="text-xs text-white/20 uppercase tracking-widest font-black">
-                    {lang === 'bn' ? 'স্মৃতি যোগ করুন' : 'ADD A MEMORY'}
-                  </p>
-                </div>
-              </button>
-            </div>
-            
-            {/* Central Icon Junction Placeholder */}
-            <div className="relative z-10 shrink-0">
-              <div className="w-20 h-20 rounded-full bg-white/5 border-4 border-dashed border-white/10 flex items-center justify-center text-white/10">
-                <div className="animate-pulse">
-                  <Sparkles size={24} />
+          {auth.currentUser && (
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className={`flex flex-col md:flex-row items-center gap-12 relative ${moments.length % 2 === 0 ? 'md:flex-row' : 'md:flex-row-reverse'}`}
+            >
+              <div className="flex-1 w-full">
+                <button 
+                  onClick={handleAdd}
+                  className="w-full group relative bg-white/5 backdrop-blur-2xl rounded-[40px] p-12 border-2 border-dashed border-white/10 hover:border-pink-500/50 transition-all flex flex-col items-center justify-center gap-4 hover:bg-white/[0.08]"
+                >
+                  <div className="w-16 h-16 rounded-full bg-pink-500/10 flex items-center justify-center text-pink-500 group-hover:scale-110 group-hover:bg-pink-500 group-hover:text-white transition-all duration-500 shadow-lg">
+                    <Plus size={32} />
+                  </div>
+                  <div className="text-center">
+                    <span className="block text-2xl font-serif text-white/40 group-hover:text-white transition-colors mb-1">
+                      {l.add}
+                    </span>
+                    <p className="text-xs text-white/20 uppercase tracking-widest font-black">
+                      {lang === 'bn' ? 'স্মৃতি যোগ করুন' : 'ADD A MEMORY'}
+                    </p>
+                  </div>
+                </button>
+              </div>
+              
+              {/* Central Icon Junction Placeholder */}
+              <div className="relative z-10 shrink-0">
+                <div className="w-20 h-20 rounded-full bg-white/5 border-4 border-dashed border-white/10 flex items-center justify-center text-white/10">
+                  <div className="animate-pulse">
+                    <Sparkles size={24} />
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="flex-1 hidden md:block" />
-          </motion.div>
+              <div className="flex-1 hidden md:block" />
+            </motion.div>
+          )}
         </div>
       </div>
 
@@ -686,17 +692,19 @@ export const Moments: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
       </div>
 
       {/* Floating Action Button */}
-      <motion.button
-        initial={{ opacity: 0, scale: 0.5, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        whileHover={{ scale: 1.1, rotate: 180 }}
-        whileTap={{ scale: 0.9 }}
-        onClick={handleAdd}
-        className="fixed bottom-10 right-10 z-[100] w-20 h-20 bg-[#c5a059] text-black rounded-full flex items-center justify-center shadow-[0_32px_64px_-16px_rgba(197,160,89,0.5)] border-4 border-white/20 group backdrop-blur-sm"
-        title={l.add}
-      >
-        <Plus size={40} className="group-hover:scale-110 transition-transform" />
-      </motion.button>
+      {auth.currentUser && (
+        <motion.button
+          initial={{ opacity: 0, scale: 0.5, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          whileHover={{ scale: 1.1, rotate: 180 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={handleAdd}
+          className="fixed bottom-10 right-10 z-[100] w-20 h-20 bg-[#c5a059] text-black rounded-full flex items-center justify-center shadow-[0_32px_64px_-16px_rgba(197,160,89,0.5)] border-4 border-white/20 group backdrop-blur-sm"
+          title={l.add}
+        >
+          <Plus size={40} className="group-hover:scale-110 transition-transform" />
+        </motion.button>
+      )}
 
       <ConfirmationDialog
         isOpen={deleteConfirm.isOpen}
