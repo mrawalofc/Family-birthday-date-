@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, Check, X, Heart, Star, Sparkles, Clock, Calendar as CalendarIcon, Bell, Cake, Gift, PartyPopper } from 'lucide-react';
+import { Settings, Check, X, Heart, Star, Sparkles, Clock, Calendar as CalendarIcon, Bell, Cake, Gift, PartyPopper, Share2, Download, Link } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { sounds } from '../lib/sounds';
 import { collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch, getDocs, query } from 'firebase/firestore';
+import { toPng } from 'html-to-image';
 
 interface EventData {
   id: string;
@@ -38,7 +39,13 @@ const texts = {
     deleteBtn: "মুছে ফেলুন",
     iconLabel: "আইকন",
     syncing: "সিঙ্ক হচ্ছে...",
-    synced: "সিঙ্ক হয়েছে"
+    synced: "সিঙ্ক হয়েছে",
+    share: "শেয়ার করুন",
+    shareTitle: "মাইলফলক শেয়ার করুন",
+    copyLink: "লিঙ্ক কপি করুন",
+    saveImage: "ছবি হিসেবে সেভ করুন",
+    copied: "লিঙ্ক কপি হয়েছে!",
+    shareMsg: (name: string, days: number) => `${name} মাইলফলকের জন্য মাত্র ${days} দিন বাকি! ⏳✨`
   },
   en: {
     title: "Family Birthdays",
@@ -58,7 +65,13 @@ const texts = {
     deleteBtn: "Delete",
     iconLabel: "Icon",
     syncing: "Syncing...",
-    synced: "Synced"
+    synced: "Synced",
+    share: "Share",
+    shareTitle: "Share Milestone",
+    copyLink: "Copy Link",
+    saveImage: "Save as Image",
+    copied: "Link Copied!",
+    shareMsg: (name: string, days: number) => `Only ${days} days left for ${name}! ⏳✨`
   }
 };
 
@@ -98,6 +111,65 @@ export const Countdown: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
   const [isInitialSync, setIsInitialSync] = useState(true);
   const notifiedToday = useRef<Set<string>>(new Set());
+  const cardRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+
+  const shareLink = async (event: EventData) => {
+    const daysLeft = timeLeft[event.id]?.days || 0;
+    const msg = (t.shareMsg as any)(event.name, daysLeft);
+    const url = window.location.href;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: event.name,
+          text: msg,
+          url: url,
+        });
+        sounds.play('success');
+      } catch (err) {
+        console.error('Error sharing:', err);
+      }
+    } else {
+      // Fallback: Copy to clipboard
+      try {
+        await navigator.clipboard.writeText(`${msg}\n${url}`);
+        alert(t.copied);
+        sounds.play('success');
+      } catch (err) {
+        console.error('Failed to copy:', err);
+      }
+    }
+  };
+
+  const downloadAsImage = async (id: string, name: string) => {
+    const element = cardRefs.current[id];
+    if (!element) return;
+
+    try {
+      setSyncStatus('syncing');
+      // Create a specific container for the capture to avoid transparent/cluttered output if needed
+      // But html-to-image usually handles the element itself well.
+      const dataUrl = await toPng(element, {
+        backgroundColor: '#0f0a1a',
+        style: {
+          borderRadius: '3rem',
+          transform: 'scale(1)',
+        },
+        cacheBust: true,
+      });
+
+      const link = document.createElement('a');
+      link.download = `milestone-${name.toLowerCase().replace(/\s+/g, '-')}.png`;
+      link.href = dataUrl;
+      link.click();
+      
+      sounds.play('success');
+      setSyncStatus('synced');
+    } catch (err) {
+      console.error('Error generating image:', err);
+      setSyncStatus('error');
+    }
+  };
 
   // Firestore Sync
   useEffect(() => {
@@ -545,6 +617,7 @@ export const Countdown: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
               key={item.id} 
               variants={itemVariants}
               whileHover={{ y: -12, scale: 1.02 }}
+              ref={el => cardRefs.current[item.id] = el}
               className={`relative overflow-hidden rounded-[3rem] p-1 border border-white/20 shadow-2xl group cursor-default h-full bg-gradient-to-br ${idx % 2 === 0 ? 'from-pink-500/10 to-purple-600/10' : 'from-blue-500/10 to-indigo-600/10'}`}
             >
               {/* Background Flourishes */}
@@ -568,17 +641,35 @@ export const Countdown: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
                       {item.name}
                     </h3>
                   </div>
-                  <div className="relative">
-                    <div className="text-6xl drop-shadow-[0_10px_20px_rgba(0,0,0,0.3)] animate-bounce-slow">
-                      {item.icon}
+                  <div className="flex flex-col items-end gap-3">
+                    <div className="relative">
+                      <div className="text-6xl drop-shadow-[0_10px_20px_rgba(0,0,0,0.3)] animate-bounce-slow">
+                        {item.icon}
+                      </div>
+                      <motion.div 
+                        animate={{ scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] }}
+                        transition={{ duration: 4, repeat: Infinity }}
+                        className="absolute -top-2 -right-2 text-yellow-400"
+                      >
+                        <Sparkles size={20} />
+                      </motion.div>
                     </div>
-                    <motion.div 
-                      animate={{ scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] }}
-                      transition={{ duration: 4, repeat: Infinity }}
-                      className="absolute -top-2 -right-2 text-yellow-400"
-                    >
-                      <Sparkles size={20} />
-                    </motion.div>
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); shareLink(item); }}
+                        className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white/60 hover:text-white transition-all shadow-lg"
+                        title={t.copyLink}
+                      >
+                        <Share2 size={14} />
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); downloadAsImage(item.id, item.name); }}
+                        className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white/60 hover:text-white transition-all shadow-lg"
+                        title={t.saveImage}
+                      >
+                        <Download size={14} />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -667,14 +758,34 @@ export const Countdown: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
         {/* Global Anniversary Milestone */}
         {anniversaryEvent && (
           <motion.div 
+            key={anniversaryEvent.id}
             variants={itemVariants}
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true }}
+            ref={el => cardRefs.current[anniversaryEvent.id] = el}
             className="bg-white/5 backdrop-blur-xl rounded-[3rem] p-12 border border-white/10 shadow-2xl relative overflow-hidden mb-12 group"
           >
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80%] h-[80%] bg-purple-500/5 blur-[100px] rounded-full pointer-events-none" />
             
+            <div className="absolute top-8 right-8 flex gap-3 opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0 z-20">
+              <button 
+                onClick={() => shareLink(anniversaryEvent)}
+                className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white/60 hover:text-white transition-all shadow-lg flex items-center gap-2"
+                title={t.copyLink}
+              >
+                <Share2 size={18} />
+                <span className="text-[10px] font-black uppercase tracking-widest">{t.share}</span>
+              </button>
+              <button 
+                onClick={() => downloadAsImage(anniversaryEvent.id, anniversaryEvent.name)}
+                className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white/60 hover:text-white transition-all shadow-lg"
+                title={t.saveImage}
+              >
+                <Download size={18} />
+              </button>
+            </div>
+
             <div className="text-center relative z-10">
               <div className="inline-flex items-center gap-3 px-5 py-2 bg-purple-500/10 rounded-full border border-purple-500/20 text-purple-300 text-xs font-black uppercase tracking-[0.3em] mb-8">
                 <Clock size={14} />
@@ -721,14 +832,31 @@ export const Countdown: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
                 initial="hidden"
                 whileInView="visible"
                 whileHover={{ y: -5, scale: 1.02 }}
+                ref={el => cardRefs.current[item.id] = el}
                 className="bg-white/5 backdrop-blur-xl rounded-[2.5rem] p-8 border border-white/10 shadow-xl relative overflow-hidden group"
               >
                 <div className="absolute -top-4 -right-4 w-20 h-20 bg-pink-500/5 rounded-full blur-xl group-hover:bg-pink-500/10 transition-all" />
                 
                 <div className="flex items-center justify-between mb-6">
                   <div className="text-4xl group-hover:scale-110 transition-transform">{item.icon}</div>
-                  <div className="bg-white/5 px-3 py-1 rounded-full border border-white/10 text-[10px] font-black text-rose-300">
-                    {getAge(item.date)} {t.age}
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => shareLink(item)}
+                      className="p-2 bg-white/5 hover:bg-white/10 rounded-xl text-white/20 hover:text-white transition-all opacity-0 group-hover:opacity-100"
+                      title={t.share}
+                    >
+                      <Share2 size={12} />
+                    </button>
+                    <button 
+                      onClick={() => downloadAsImage(item.id, item.name)}
+                      className="p-2 bg-white/5 hover:bg-white/10 rounded-xl text-white/20 hover:text-white transition-all opacity-0 group-hover:opacity-100"
+                      title={t.saveImage}
+                    >
+                      <Download size={12} />
+                    </button>
+                    <div className="bg-white/5 px-3 py-1 rounded-full border border-white/10 text-[10px] font-black text-rose-300">
+                      {getAge(item.date)} {t.age}
+                    </div>
                   </div>
                 </div>
 
