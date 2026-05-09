@@ -99,8 +99,12 @@ export const About: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
         await setDoc(docRef, formData);
         setSyncStatus('synced');
       } catch (e) {
-        handleFirestoreError(e, OperationType.WRITE, `users/${auth.currentUser.uid}/settings/story`);
         setSyncStatus('error');
+        try {
+          handleFirestoreError(e, OperationType.WRITE, `users/${auth.currentUser.uid}/settings/story`);
+        } catch (innerErr) {
+          console.error("Firestore sync failed:", innerErr);
+        }
       }
     }
   };

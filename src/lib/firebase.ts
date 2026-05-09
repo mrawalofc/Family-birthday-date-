@@ -53,20 +53,15 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
-// Enable offline persistence
+// Persistence can sometimes cause "offline" loops if not handled carefully in certain environments.
+// We'll disable it for now or ensure it's handled.
+/* 
 if (typeof window !== 'undefined') {
   enableIndexedDbPersistence(db).catch((err) => {
-    if (err.code === 'failed-precondition') {
-      // Multiple tabs open, persistence can only be enabled
-      // in one tab at a a time.
-      console.warn('Firestore persistence failed: Multiple tabs open');
-    } else if (err.code === 'unimplemented') {
-      // The current browser does not support all of the
-      // features required to enable persistence
-      console.warn('Firestore persistence failed: Browser not supported');
-    }
+    ...
   });
 }
+*/
 
 // Initialize Auth with explicit persistence and popup resolver
 export const auth = initializeAuth(app, {
@@ -93,17 +88,20 @@ export async function runWithPopupGuard<T>(fn: () => Promise<T>): Promise<T> {
   return activePopup;
 }
 
-// Test connection on boot
+// Test connection on boot with more grace
 async function testConnection() {
   try {
     const path = 'test/connection';
-    await getDocFromServer(doc(db, path));
+    // We use a simple getDoc first to see if it responds.
+    const { getDoc } = await import('firebase/firestore');
+    await getDoc(doc(db, path));
     console.log('Firebase connection successful');
   } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration: Client is offline.");
+    if (error instanceof Error && (error.message.includes('the client is offline') || error.message.includes('Could not reach'))) {
+      console.error("Firebase Connection Error: The client appears to be offline or cannot reach the backend. Check your network or Firebase project status.");
+      // We don't throw here to allow the app to boot in "offline-first" mode if possible.
     } else {
-      console.error("Firebase connection test failed:", error);
+      console.warn("Firebase connection test warning (optional):", error);
     }
   }
 }

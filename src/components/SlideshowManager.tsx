@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Trash2, Image as ImageIcon, Loader2, X, AlertCircle, Save, Upload, Cloud, CloudOff, RefreshCw } from 'lucide-react';
 import { sounds } from '../lib/sounds';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query, writeBatch, getDocs, orderBy } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query, writeBatch, getDocs, orderBy, limit } from 'firebase/firestore';
 import { ConfirmationDialog } from './ConfirmationDialog';
 
 interface SlideshowImage {
@@ -52,7 +52,7 @@ export const SlideshowManager: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
       }
 
       // 2. Subscription
-      const q = query(slidesRef, orderBy('createdAt', 'desc'));
+      const q = query(slidesRef, orderBy('createdAt', 'desc'), limit(15));
       unsubscribe = onSnapshot(q, (snap) => {
         const firestoreImages: SlideshowImage[] = [];
         snap.forEach(doc => firestoreImages.push(doc.data() as SlideshowImage));

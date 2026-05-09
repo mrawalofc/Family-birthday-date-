@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Camera, Edit2, Save, X, LogIn, LogOut, Loader2, Download, Upload, HardDrive, Trash2, Clock, CheckCircle2, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { auth } from '../lib/firebase';
+import { auth, runWithPopupGuard } from '../lib/firebase';
 import { signOut } from 'firebase/auth';
 import { SlideshowManager } from './SlideshowManager';
 import { LocalBackupService, AppData } from '../services/localBackupService';
@@ -126,6 +126,25 @@ export const UserProfile: React.FC<{ lang: 'bn' | 'en', setLang: (l: 'bn' | 'en'
     setIsEditing(false);
   };
 
+  const handleGoogleLogin = async () => {
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const { GoogleAuthProvider, signInWithPopup } = await import('firebase/auth');
+      const provider = new GoogleAuthProvider();
+      await runWithPopupGuard(() => signInWithPopup(auth, provider));
+      sounds.play('success');
+    } catch (err: any) {
+      console.error(err);
+      if (err.code !== 'auth/popup-closed-by-user') {
+        setAuthError(err.message);
+      }
+      sounds.play('error');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -209,6 +228,21 @@ export const UserProfile: React.FC<{ lang: 'bn' | 'en', setLang: (l: 'bn' | 'en'
           </div>
           <h3 className="text-xl font-bold text-white mb-2">{l.loginTitle}</h3>
           <p className="text-white/40 text-sm mb-6">{l.loginSub}</p>
+          
+          <button 
+            disabled={authLoading}
+            onClick={handleGoogleLogin}
+            className={`w-full py-4 ${currentTheme.color} text-white rounded-2xl font-bold shadow-lg hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-3`}
+          >
+            {authLoading ? <Loader2 className="animate-spin" size={20} /> : <LogIn size={20} />}
+            {l.googleBtn}
+          </button>
+
+          {authError && (
+            <p className="mt-4 text-xs text-red-400 font-medium">
+              {l.authError}
+            </p>
+          )}
         </motion.div>
       ) : (
         <motion.div

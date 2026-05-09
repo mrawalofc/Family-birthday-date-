@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { collection, query, orderBy, onSnapshot, where } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, where, limit } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuthState } from 'react-firebase-hooks/auth';
@@ -38,27 +38,51 @@ export const Slideshow: React.FC = () => {
   const [direction, setDirection] = useState(0);
 
   useEffect(() => {
-    const loadImages = () => {
+    const slidesRef = collection(db, 'slideshow');
+    const q = query(slidesRef, orderBy('createdAt', 'desc'), limit(15));
+
+    const unsubscribe = onSnapshot(q, (snap) => {
+      const firestoreImages: SlideshowImage[] = [];
+      snap.forEach(doc => firestoreImages.push({ id: doc.id, ...doc.data() } as SlideshowImage));
+      
+      if (firestoreImages.length > 0) {
+        setImages(firestoreImages.slice(0, 10)); // Keep only 10 for performance
+        // Sync to local storage for offline fallback
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(firestoreImages.slice(0, 10)));
+      } else {
+        // Fallback to local storage or defaults if Firestore is empty
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+              setImages(parsed);
+            } else {
+              setImages(DEFAULT_IMAGES as SlideshowImage[]);
+            }
+          } catch (e) {
+            setImages(DEFAULT_IMAGES as SlideshowImage[]);
+          }
+        } else {
+          setImages(DEFAULT_IMAGES as SlideshowImage[]);
+        }
+      }
+    }, (err) => {
+      console.error("Slideshow sync error:", err);
+      // Fallback on error
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
           if (parsed && Array.isArray(parsed) && parsed.length > 0) {
             setImages(parsed);
-          } else {
-            setImages(DEFAULT_IMAGES as SlideshowImage[]);
           }
-        } catch (e) {
-          setImages(DEFAULT_IMAGES as SlideshowImage[]);
-        }
-      } else {
-        setImages(DEFAULT_IMAGES as SlideshowImage[]);
+        } catch (e) {}
       }
-    };
+      if (images.length === 0) setImages(DEFAULT_IMAGES as SlideshowImage[]);
+    });
 
-    loadImages();
-    window.addEventListener('storage', loadImages);
-    return () => window.removeEventListener('storage', loadImages);
+    return () => unsubscribe();
   }, []);
 
   const paginate = useCallback((newDirection: number) => {

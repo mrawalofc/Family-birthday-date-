@@ -188,6 +188,7 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
   const [isInitialSync, setIsInitialSync] = useState(true);
+  const [autoAddToSlideshow, setAutoAddToSlideshow] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; type: 'album' | 'photo' | 'import'; id: string | null; data?: any }>({ isOpen: false, type: 'album', id: null });
 
   // Firestore Sync Logic
@@ -542,6 +543,16 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
             try {
               const photoRef = doc(db, 'users', user.uid, 'albums', selectedAlbum.id, 'photos', photoId);
               await setDoc(photoRef, photo);
+
+              // Auto-add to slideshow if enabled
+              if (autoAddToSlideshow) {
+                const slidesRef = doc(db, 'slideshow', photoId);
+                await setDoc(slidesRef, {
+                  ...photo,
+                  userId: user.uid,
+                  caption: photo.caption || (lang === 'bn' ? 'অ্যালবাম থেকে' : 'From Album')
+                });
+              }
             } catch (err) {
               handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/albums/${selectedAlbum.id}/photos/${photoId}`);
             }
@@ -803,6 +814,7 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
       emptyAlbum: "এই অ্যালবামটি খালি।",
       captionPlaceholder: "একটি ক্যাপশন লিখুন...",
       saveCaption: "সংরক্ষণ করুন",
+      autoAddLabel: "স্লাইডশোতে যোগ করুন",
     },
     en: {
       art: "Art",
@@ -818,6 +830,7 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
       emptyAlbum: "This album is empty.",
       captionPlaceholder: "Write a caption...",
       saveCaption: "Save",
+      autoAddLabel: "Add to Home Slideshow",
     }
   };
 
@@ -1115,6 +1128,27 @@ export const Gallery: React.FC<{ lang: 'bn' | 'en' }> = ({ lang }) => {
                   </div>
                   
                   <div className="flex items-center gap-4 relative z-10">
+                    {auth.currentUser && (
+                      <div 
+                        onClick={() => setAutoAddToSlideshow(!autoAddToSlideshow)}
+                        className={`flex items-center gap-3 px-6 py-4 rounded-2xl border transition-all cursor-pointer ${
+                          autoAddToSlideshow 
+                          ? 'bg-pink-500/10 border-pink-500/30 text-pink-400 shadow-lg shadow-pink-500/10' 
+                          : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10'
+                        }`}
+                      >
+                        <Sparkles size={16} className={autoAddToSlideshow ? 'animate-pulse' : ''} />
+                        <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">
+                          {l.autoAddLabel as string}
+                        </span>
+                        <div className={`w-8 h-4 rounded-full relative transition-colors ${autoAddToSlideshow ? 'bg-pink-500' : 'bg-white/10'}`}>
+                          <motion.div 
+                            animate={{ x: autoAddToSlideshow ? 16 : 2 }}
+                            className="absolute top-0.5 left-0 w-3 h-3 bg-white rounded-full shadow-sm"
+                          />
+                        </div>
+                      </div>
+                    )}
                     <div className="flex bg-white/5 p-1.5 rounded-2xl border border-white/5 backdrop-blur-3xl">
                       <button 
                         onClick={() => setViewMode('grid')}
